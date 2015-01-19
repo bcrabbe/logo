@@ -28,7 +28,6 @@ typedef struct symNode {
 typedef struct symbolList {
     symbolNode * start;
     symbolNode * end;
-    symbolNode * current;
     unsigned long length;
 } symbolList;
 
@@ -46,6 +45,8 @@ int parseMAIN(parser * p);
 int parseINSTRCTLST(parser * p);
 int parseINSTRUCTION(parser * p);
 int parseFD(parser * p);
+int parseRT(parser * p);
+int parseLT(parser * p);
 int parseVARNUM(parser * p);
 char parseVAR(parser * p);
 
@@ -57,17 +58,20 @@ void freeParser();
 int incrementAtToken(parser * p);
 int getVarValue(char var);
 void addSymToList(parser * p, symbol sym, int value);
+void printSymList(parser * p);
+void printSymNode(symbolNode * node);
+//error list functions
 int addErrorToList(char * errorString);
 void displayErrors(parser * p);
+void syntaxError(const char * errorString);
+void finishedBeforeWeExpectedError();
 
 //token array functions
 char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char * delimiter);
 void testTokenArray(char ** tokenArray, int numberOfTokens);
 void freeTokenArray(char **tokenArray,int numberOfTokens);
 
-//error messaging functions
-void syntaxError(const char * errorString);
-void finishedBeforeWeExpectedError();
+
 
 
 int parse(char * inputString)
@@ -89,10 +93,11 @@ int parse(char * inputString)
     if(parseMAIN(p))
     {
         printf("VALID.\n");
-
+        printSymList(p);
     }
     else
     {
+        printSymList(p);
         displayErrors(p);
     }
     freeParser();
@@ -144,7 +149,19 @@ int parseINSTRUCTION(parser * p)
     {
         return 1;
     }
-    else return 0;
+    else if(parseLT(p))
+    {
+        return 1;
+    }
+    else if(parseRT(p))
+    {
+        return 1;
+    }
+    else
+    {
+        //error handled in parseINSTRCTLST()
+        return 0;
+    }
 }
 
 int parseFD(parser * p)
@@ -160,6 +177,7 @@ int parseFD(parser * p)
                 return 0;
             }
             addSymToList(p, symFD, value);
+            return 1;
         }
         else
         {
@@ -169,6 +187,51 @@ int parseFD(parser * p)
     return 0;
 }
 
+int parseLT(parser * p)
+{
+    if(stringsMatch(p->progArray[p->atToken], "LT"))
+    {
+        if(incrementAtToken(p))
+        {
+            int value = parseVARNUM(p);
+            if(!value)
+            {
+                syntaxError("LT 0 is a redundant instruction.");
+                return 0;
+            }
+            addSymToList(p, symLT, value);
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+int parseRT(parser * p)
+{
+    if(stringsMatch(p->progArray[p->atToken], "RT"))
+    {
+        if(incrementAtToken(p))
+        {
+            int value = parseVARNUM(p);
+            if(!value)
+            {
+                syntaxError("RT 0 is a redundant instruction.");
+                return 0;
+            }
+            addSymToList(p, symRT, value);
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    return 0;
+}
 
 int parseVARNUM(parser * p)
 {
@@ -178,12 +241,19 @@ int parseVARNUM(parser * p)
         printError("parseVARNUM recieved a empty string. Exiting.",__FILE__,__FUNCTION__,__LINE__);
         exit(1);
     }
-    if(isupper(p->progArray[p->atToken][0]))//if its a upper case letter...
+    if(isdigit(p->progArray[p->atToken][0]))//if its a digit...
+    {
+        value = stringToInt(p->progArray[p->atToken]);
+        incrementAtToken(p);
+        return value;
+    }
+    else if(isupper(p->progArray[p->atToken][0]))//if its a upper case letter...
     {
         char var = parseVAR(p);
         if(var)
         {
             value = getVarValue(var);
+            incrementAtToken(p);
             return value;
         }
         else
@@ -191,11 +261,6 @@ int parseVARNUM(parser * p)
             //error passed from parseVAR()
             return 0;
         }
-    }
-    else if(isdigit(p->progArray[p->atToken][0]))//if its a digit...
-    {
-        value = stringToInt(p->progArray[p->atToken]);
-        return value;
     }
     else
     {
@@ -232,7 +297,7 @@ int stringToInt(const char * string)
                    __FILE__,__FUNCTION__,__LINE__);
         return 0;
     }
-    int sign=0;
+    int sign=1;
     if(string[0]=='-')
     {
         sign = -1;
@@ -250,7 +315,7 @@ int stringToInt(const char * string)
 
 
 
-#pragma mark parser object
+#pragma mark parser obj functions
 
 parser * initParser()
 {
@@ -270,6 +335,9 @@ parser * initParser()
         printError("realloc failed exiting.",__FILE__,__FUNCTION__,__LINE__);
         exit(1);
     }
+    p->symList->length=0;
+    p->symList->start=NULL;
+    p->symList->end=NULL;
     p->errorList=NULL;
     p->numberOfErrors=0;
     getParser(p);//stores p in static variable
@@ -303,12 +371,14 @@ int incrementAtToken(parser * p)
 {
     if(p->atToken < p->numberOfTokens-1)
     {
+        printf("moved to token %d [%s]\n",p->atToken, p->progArray[p->atToken]);
         return ++p->atToken;
     }
     else
     {
         finishedBeforeWeExpectedError();
-        return 0;
+        displayErrors(p);
+        exit(1);
     }
 }
 
@@ -318,17 +388,23 @@ int getVarValue(char var)
     return p->varValues[(int)var];
 }
        
-
+#pragma mark symbol list functions
 void addSymToList(parser * p, symbol sym, int value)
 {
-    symbolNode * firstNode = malloc(sizeof(firstNode));
+    symbolNode * firstNode = malloc(sizeof(symbolNode));
+    if(firstNode==NULL)
+    {
+        printError("malloc failed.", __FILE__, __FUNCTION__, __LINE__);
+        exit(1);
+    }
     firstNode->sym = sym;
     firstNode->value = value;
     firstNode->next = NULL;
-    if(!p->symList->length)
+    if(p->symList->length==0)
     {//if first node:
         p->symList->start = firstNode;
         p->symList->end = firstNode;
+        
     }
     else
     {
@@ -338,6 +414,51 @@ void addSymToList(parser * p, symbol sym, int value)
     ++p->symList->length;
 }
 
+void printSymList(parser * p)
+{
+    symbolNode * current = p->symList->start;
+    printf("{\n");
+    while(current)
+    {
+        printSymNode(current);
+        current=current->next;
+    }
+    printf("}\n");
+}
+
+void printSymNode(symbolNode * node)
+{
+    switch (node->sym)
+    {
+        case symFD:
+        {
+            printf("    FD   ");
+            break;
+        }
+        case symRT:
+        {
+            printf("    RT   ");
+            break;
+        }
+        case symLT:
+        {
+            printf("    LT   ");
+            break;
+        }
+        case symSET:
+        {
+            printf("    SET   ");
+            break;
+        }
+        default:
+        {
+            printError("symList contained a unexpected symbol", __FILE__, __FUNCTION__, __LINE__);
+            exit(1);
+        }
+    }
+    printf("%d\n",node->value);
+}
+#pragma mark error messaging functions
 
 int addErrorToList(char * errorString)
 {
@@ -361,87 +482,20 @@ void displayErrors(parser * p)
         printf("%s \n \n",p->errorList[i]);
     }
 }
-
-#pragma mark tokenArray
-/*
- *  Takes the input string and breaks into separate words (where there is a
-    space and new string starts) each of these words is stored in the
-    commandArray which is an array of strings.
-    @returns a string array [0 to numberOfTokens-1]
- */
-char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char * delimiter)
-{
-    static int calls=1;
-    char    *stringToken,                       //holds the chunks on the input string as we break it up
-            *inputStringDuplicate = strdup(inputString),//duplicate input string for editting
-            **tokenArray = NULL;              //this will be an array to hold each of the chunk strings
-    int     numberOfTokens=0;
-    
-    //using http://www.tutorialspoint.com/c_standard_library/c_function_strtok.htm
-    stringToken = strtok(inputStringDuplicate, delimiter); // gets the first chunk (up to the first space)
-    
-    // walk through rest of string
-    while( stringToken != NULL )
-    {
-        if(strcmp(stringToken," ")==0 || strcmp(stringToken,",")==0)
-        {
-            //do nothing
-        }
-        else
-        {
-            ++numberOfTokens;
-            char ** tmp = (char **)realloc(tokenArray,numberOfTokens*sizeof(char*));//array of strings
-            if(!tmp)
-            {
-                printError("realloc failed, exiting.",__FILE__,__FUNCTION__,__LINE__);
-                exit(1);
-            }
-            tokenArray = tmp;
-            tokenArray[numberOfTokens-1]=(char *)malloc((size_t)(strlen(stringToken)*sizeof(char)+1));
-            if(!tokenArray[numberOfTokens-1])
-            {
-                printError("malloc failed, exiting.",__FILE__,__FUNCTION__,__LINE__);
-                exit(1);
-            }
-            strcpy(tokenArray[numberOfTokens-1],stringToken);
-        }
-        stringToken = strtok(NULL, delimiter);
-    }
-    free(inputStringDuplicate);//frees the malloc made in strdup()
-                               //$(numberOfChunks) strings now stored in the commandArray
-    *numberOfTokensPtr=numberOfTokens;
-    ++calls;
-    return tokenArray;
-}
-
-/*
- *  frees the memory allocated to a tokenArray in tokenise func
- */
-void freeTokenArray(char **tokenArray,int numberOfTokens)
-{
-    for(int i=0; i<numberOfTokens; ++i)
-    {
-        free(tokenArray[i]);
-    }
-    free(tokenArray);
-}
-
-
-#pragma mark error messaging functions
 void finishedBeforeWeExpectedError()
 {
     addErrorToList("ERROR: expected program to end with a ""}""\n");
 }
-       
+
 void syntaxError(const char * errorString)
 {
     parser * p = getParser(NULL);
     char * editableErrorString = strdup(errorString);
     char stringStart[MAX_ERROR_STRING_SIZE];
     if(p->atToken==p->numberOfTokens-1) return;//stop a segfault if last token
-    sprintf(stringStart,"ERROR: invalid syntax at token %d [%s] token %d [%s]",
+    sprintf(stringStart,"ERROR: invalid syntax at token %d [%s] previous token %d [%s]. \n\n",
             p->atToken, p->progArray[p->atToken],
-            p->atToken+1,  p->progArray[p->atToken+1]);
+            p->atToken-1,  p->progArray[p->atToken-1]);
     strcat(stringStart,editableErrorString);
     addErrorToList(stringStart);
     free(editableErrorString);
@@ -518,6 +572,72 @@ char * whatDoWeExpectString(symbol context)
         }
     }
 }
+#pragma mark tokenArray
+/*
+ *  Takes the input string and breaks into separate words (where there is a
+    space and new string starts) each of these words is stored in the
+    commandArray which is an array of strings.
+    @returns a string array [0 to numberOfTokens-1]
+ */
+char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char * delimiter)
+{
+    static int calls=1;
+    char    *stringToken,                       //holds the chunks on the input string as we break it up
+            *inputStringDuplicate = strdup(inputString),//duplicate input string for editting
+            **tokenArray = NULL;              //this will be an array to hold each of the chunk strings
+    int     numberOfTokens=0;
+    
+    //using http://www.tutorialspoint.com/c_standard_library/c_function_strtok.htm
+    stringToken = strtok(inputStringDuplicate, delimiter); // gets the first chunk (up to the first space)
+    
+    // walk through rest of string
+    while( stringToken != NULL )
+    {
+        if(strcmp(stringToken," ")==0 || strcmp(stringToken,",")==0)
+        {
+            //do nothing
+        }
+        else
+        {
+            ++numberOfTokens;
+            char ** tmp = (char **)realloc(tokenArray,numberOfTokens*sizeof(char*));//array of strings
+            if(!tmp)
+            {
+                printError("realloc failed, exiting.",__FILE__,__FUNCTION__,__LINE__);
+                exit(1);
+            }
+            tokenArray = tmp;
+            tokenArray[numberOfTokens-1]=(char *)malloc((size_t)(strlen(stringToken)*sizeof(char)+1));
+            if(!tokenArray[numberOfTokens-1])
+            {
+                printError("malloc failed, exiting.",__FILE__,__FUNCTION__,__LINE__);
+                exit(1);
+            }
+            strcpy(tokenArray[numberOfTokens-1],stringToken);
+        }
+        stringToken = strtok(NULL, delimiter);
+    }
+    free(inputStringDuplicate);//frees the malloc made in strdup()
+                               //$(numberOfChunks) strings now stored in the commandArray
+    *numberOfTokensPtr=numberOfTokens;
+    ++calls;
+    return tokenArray;
+}
+
+/*
+ *  frees the memory allocated to a tokenArray in tokenise func
+ */
+void freeTokenArray(char **tokenArray,int numberOfTokens)
+{
+    for(int i=0; i<numberOfTokens; ++i)
+    {
+        free(tokenArray[i]);
+    }
+    free(tokenArray);
+}
+
+
+
 #pragma developement tests
 /*
  *  Test function for developement. Prints contents of a tokenArray
