@@ -79,7 +79,7 @@ int printError(const char * errorString, const char file[], const char function[
     {
         char * editableErrorString = strdup(errorString);
         char stringStart[MAX_ERROR_STRING_SIZE];
-        sprintf(stringStart,"Error in %s module in function %s at line %d.\n\n", file, function, line);
+        sprintf(stringStart,"\n******Error in %s module in function %s at line %d.\n\n", file, function, line);
         strcat(stringStart,editableErrorString);
         printf("%s\n\n",stringStart);
         free(editableErrorString);

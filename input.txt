@@ -1,18 +1,8 @@
+
 {
- FD 30
- LT 45
- FD 30
- LT 45
- FD 30
- LT 45
- FD 30
- LT 45
- FD 30
- LT 45
- FD 30
- LT 45
- FD 30
- LT 45
- FD 30
- LT 45
+   DO A FROM 1 TO 10 {
+      SET C := A 1.5 * ;
+      FD C
+      RT 6.2
+} 
 }
