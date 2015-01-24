@@ -11,7 +11,6 @@
 #include <string.h>
 #include <math.h>
 #include "main.h"
-#include "parser.h"
 
 char * readFile(const char * argv1);
 
@@ -24,9 +23,11 @@ int main(int argc, const char * argv[])
         exit(0);
     }
     char * inputString = readFile(argv[1]);
-    
-//  parse(inputString);
-    return parse(inputString);
+    symbolList * symList = parse(inputString);
+    pointArray * path = buildPath(symList);
+    printf("%d points in path\n",path->numberOfPoints);
+    draw(path);
+    return 1;
 }
 
 /*

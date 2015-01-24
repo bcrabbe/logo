@@ -5,8 +5,6 @@
 //  Created by ben on 18/01/2015.
 //  Copyright (c) 2015 ben. All rights reserved.
 //
-#include "parser.h"
-#include "interpreter.h"
 #include "main.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -88,7 +86,7 @@ void freeTokenArray(char **tokenArray,int numberOfTokens);
 
 
 
-int parse(char * inputString)
+symbolList * parse(char * inputString)
 {
     unsigned long inputStringLength = strlen(inputString);
     if(!inputStringLength)
@@ -98,7 +96,7 @@ int parse(char * inputString)
     }
     parser * p = initParser();
    
-    p->progArray = tokenise(inputString, &p->numberOfTokens, " \n\r");
+    p->progArray = tokenise(inputString, &p->numberOfTokens, " \n\r\t");
 
     if(VERBOSE)
     {
@@ -115,7 +113,7 @@ int parse(char * inputString)
         displayErrors(p);
     }
     freeParser(p);
-    return 1;
+    return p->symList;
 }
 
 #pragma mark symbol parsers
@@ -535,7 +533,9 @@ void freeParser()
         free(p->errorList[i]);
     }
     free(p->errorList);
-    //need a symlistFree aswell
+    free(p->polishCalcStack->array);
+    free(p->polishCalcStack);
+    //do not want to free symlist as this is returned.
 }
 
 int incrementAtToken(parser * p)
@@ -581,7 +581,6 @@ void addSymToList(parser * p, symbol sym, float value)
     {//if first node:
         p->symList->start = firstNode;
         p->symList->end = firstNode;
-        
     }
     else
     {
@@ -900,3 +899,4 @@ void testTokenArray(char ** tokenArray, int numberOfTokens)
     printf("\n\n\n");
 
 }
+

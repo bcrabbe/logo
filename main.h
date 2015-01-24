@@ -8,11 +8,17 @@
 
 #ifndef logo_main_h
 #define logo_main_h
+#include "sput.h"
+#include "debug.h"
 
 #define VERBOSE 1
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
 #define MAX_ERROR_STRING_SIZE 400
+#define NUMBER_OF_DIMENSIONS 2
+#define DIM_MAX 1
 
+/******************************************************************************/
+//Parser Functions
 typedef enum symbol {
     symMAIN, symINSTRCTLST, symINSTRUCTION, symFD, symLT, symRT, symDO, symVAR,
     symVARNUM, symSET, symPOLISH, symOP
@@ -29,6 +35,28 @@ typedef struct symbolList {
     symbolNode * end;
     unsigned long length;
 } symbolList;
+
+symbolList * parse(char * inputString);
+/******************************************************************************/
+//Path Making Functions
+typedef enum dimension {
+    X = 0,
+    Y = 1
+} dimension;
+
+typedef struct point {
+    float r[DIM_MAX+1];//r is postion vector
+} point;
+
+typedef struct pointArray {
+    point * array;
+    int numberOfPoints;
+} pointArray;
+
+pointArray * buildPath( symbolList * symList);
+/******************************************************************************/
+//Drawing:
+void draw(pointArray * path);
 
 //generic functions
 int printError(const char * errorString, const char file[], const char function[], const int line);
