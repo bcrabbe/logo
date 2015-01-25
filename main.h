@@ -11,9 +11,10 @@
 #include "sput.h"
 #include "debug.h"
 
+#define TESTING 1
 #define VERBOSE 1
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
-#define MAX_ERROR_STRING_SIZE 400
+#define MAX_ERROR_STRING_SIZE 600
 #define NUMBER_OF_DIMENSIONS 2
 #define DIM_MAX 1
 
@@ -37,6 +38,9 @@ typedef struct symbolList {
 } symbolList;
 
 symbolList * parse(char * inputString);
+
+
+
 /******************************************************************************/
 //Path Making Functions
 typedef enum dimension {
@@ -54,13 +58,27 @@ typedef struct pointArray {
 } pointArray;
 
 pointArray * buildPath( symbolList * symList);
+
+
+
 /******************************************************************************/
-//Drawing:
+//Drawing Functions
 void draw(pointArray * path);
 
-//generic functions
+
+
+/******************************************************************************/
+//Utility Functions
 int printError(const char * errorString, const char file[], const char function[], const int line);
 char *strdup(const char * s);
 int stringsMatch(const char * string1, const char * string2);
+
+
+
+/******************************************************************************/
+//Module Unit Tests
+void unitTests_main();
+void unitTests_parser();
+
 
 #endif

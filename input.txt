@@ -1,12 +1,15 @@
 
 {
-   DO A FROM 1 TO 1000 {
+   DO A FROM 1 TO 400 {
       SET C := A 20 * ;
       FD C
       RT 213
-	SET D := A 3 / ;
+	SET D := A 3 * ;
 	FD D
 	RT 13
-
+	SET E := C D + ;
+	SET F := C D - ;
+	SET G := E F / ;
+	LT G
 } 
 }

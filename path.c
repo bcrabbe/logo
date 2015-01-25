@@ -23,7 +23,7 @@ typedef struct turtle {
 
 pointArray * buildPath( symbolList * symList);
 turtle * startingPoint();
-void sampleTurtle (pointArray * path, turtle * t);
+void sampleTurtle(pointArray * path, turtle * t);
 void moveTurtleFD(turtle * t, float ammount);
 void rotateTurtle(turtle * t, symbol leftOrRight, float ammount);
 float convertDegreesToRadians(float degrees);

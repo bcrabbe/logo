@@ -6,6 +6,7 @@
 //  Copyright (c) 2015 ben. All rights reserved.
 //
 #include "main.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +51,7 @@ int parseOP(parser * p, operator * op);
 int parsePOLISH(parser * p, float * result);
 
 
+
 //parserStruct functions
 
 parser * initParser();
@@ -62,9 +64,9 @@ float getVarValue(parser *p, char var);
 int setVarValue(parser *p, char var, float newValue);
 
 //parserStruct -> symbol list funcs
-void addSymToList(parser * p, symbol sym, float value);
-void printSymList(parser * p);
-void printSymNode(symbolNode * node);
+int addSymToList(parser * p, symbol sym, float value);
+int printSymList(parser * p);
+int printSymNode(symbolNode * node);
 
 //parserStruct -> polish calc functions
 void pushValue(parser *p, float value);
@@ -73,18 +75,18 @@ void clearCalculatorStack(parser * p);
 
 //parserStruct -> error list functions
 int addErrorToList(parser * p,char * errorString);
-void displayErrors(parser * p);
-void syntaxError(parser * p,const char * errorString);
-void * whatDoWeExpectString(parser * p,symbol context);
-void finishedBeforeWeExpectedError(parser * p);
+int displayErrors(parser * p);
+int syntaxError(parser * p, const char * errorString);
+int addWhatDoWeExpectStringToErrorList(parser * p, symbol context);
 
 //parserStruct -> token array functions
 char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char * delimiter);
 void testTokenArray(char ** tokenArray, int numberOfTokens);
 void freeTokenArray(char **tokenArray,int numberOfTokens);
+int isStringWhiteSpace(char * string);
 
 
-
+//Unit tests
 
 symbolList * parse(char * inputString)
 {
@@ -96,7 +98,7 @@ symbolList * parse(char * inputString)
     }
     parser * p = initParser();
    
-    p->progArray = tokenise(inputString, &p->numberOfTokens, " \n\r\t");
+    p->progArray = tokenise(inputString, &p->numberOfTokens, " \n\r\t\v\f");
 
     if(VERBOSE)
     {
@@ -104,8 +106,11 @@ symbolList * parse(char * inputString)
     }
     if(parseMAIN(p))
     {
-        printf("\n\nVALID.\n");
-        printSymList(p);
+        if(VERBOSE)
+        {
+            printf("\n\nProgram was validated successfully.\n");
+            printSymList(p);
+        }
     }
     else
     {
@@ -142,7 +147,6 @@ int parseINSTRCTLST(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "}"))
     {
-        // if(!incrementAtToken(p)) return ;
         return 1;
     }
     else if(parseINSTRUCTION(p))
@@ -178,7 +182,6 @@ int parseINSTRUCTION(parser * p)
     {
         return 1;
     }
-
     else
     {
         //error handled in parseINSTRCTLST()
@@ -190,21 +193,18 @@ int parseFD(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "FD"))
     {
-        if(incrementAtToken(p))
+        if(incrementAtToken(p)==0) return 0;
+        else
         {
             float value;
             parseVARNUM(p,&value);
             if(value==0)
             {
                 syntaxError(p,"FD 0 is a redundant instruction.");
-                return 0;
+                return 1;
             }
             addSymToList(p, symFD, value);
             return 1;
-        }
-        else
-        {
-            return 0;
         }
     }
     return 0;
@@ -214,24 +214,22 @@ int parseLT(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "LT"))
     {
-        if(incrementAtToken(p))
+        if(incrementAtToken(p)==0) return 0;
+        else
         {
             float value;
             parseVARNUM(p,&value);
             if(value==0)
             {
                 syntaxError(p,"LT 0 is a redundant instruction.");
-                return 0;
+                return 1;
             }
             addSymToList(p, symLT, value);
             return 1;
         }
-        else
-        {
-            return 0;
-        }
+   
     }
-    return 0;
+    else return 0;
 }
 
 int parseRT(parser * p)
@@ -247,7 +245,7 @@ int parseRT(parser * p)
             if(value==0)
             {
                 syntaxError(p,"RT 0 is a redundant instruction.");
-                return 0;
+                return 1;
             }
             addSymToList(p, symRT, value);
             return 1;
@@ -324,7 +322,7 @@ int parseDO(parser * p)
         char var = parseVAR(p);
         if(var=='\0')
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read ""VAR"".");
             return 0;
         }
@@ -332,7 +330,7 @@ int parseDO(parser * p)
         // "FROM"
         if(!stringsMatch(p->progArray[p->atToken], "FROM"))
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read ""FROM"".");
             return 0;
         }
@@ -342,7 +340,7 @@ int parseDO(parser * p)
         float fromVarNum;
         if(!parseVARNUM(p,&fromVarNum))
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read 1st <VARNUM>.");
             return 0;
         }
@@ -350,7 +348,7 @@ int parseDO(parser * p)
         // "TO"
         if(!stringsMatch(p->progArray[p->atToken], "TO"))
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read ""TO"".");
             return 0;
         }
@@ -360,7 +358,7 @@ int parseDO(parser * p)
         float toVarNum;
         if(!parseVARNUM(p,&toVarNum))
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read 2nd <VARNUM>.");
             return 0;
         }
@@ -368,7 +366,7 @@ int parseDO(parser * p)
         // get "{"
         if(!stringsMatch(p->progArray[p->atToken], "{"))
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read ""{"".");
             return 0;
         }
@@ -399,7 +397,7 @@ int parseSET(parser * p)
         char var = parseVAR(p);
         if(var=='\0')
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read ""VAR"".");
             return 0;
         }
@@ -407,7 +405,7 @@ int parseSET(parser * p)
         // ":="
         if(!stringsMatch(p->progArray[p->atToken], ":="))
         {
-            whatDoWeExpectString(p,symDO);
+            addWhatDoWeExpectStringToErrorList(p,symDO);
             syntaxError(p,"Could not read "":="".");
             return 0;
         }
@@ -436,7 +434,7 @@ int parsePOLISH(parser * p, float * result)
             syntaxError(p,"polish expression incorrectly formatted.");
             return 0;
         }
-        if(!incrementAtToken(p)) return 0;
+        if(incrementAtToken(p)==0) return 0;
         *result = p->polishCalcStack->array[0];
         return 1;
     }
@@ -453,7 +451,7 @@ int parsePOLISH(parser * p, float * result)
         popToOperator(p, op);
         return parsePOLISH(p, result);
     }
-    whatDoWeExpectString(p, symPOLISH);
+    addWhatDoWeExpectStringToErrorList(p, symPOLISH);
     syntaxError(p,"could not read VARNUM or OP.");
     return 0;
 }
@@ -486,9 +484,9 @@ int parseOP(parser * p, operator * op)
 parser * initParser()
 {
     parser * p = malloc(sizeof(parser));
-    if(!p)
+    if(p==NULL)
     {
-        printError("malloc failed exiting.",__FILE__,__FUNCTION__,__LINE__);
+        printError("parser * p = malloc(sizeof(parser)) failed exiting.",__FILE__,__FUNCTION__,__LINE__);
         exit(1);
     }
     p->progArray = NULL;
@@ -496,9 +494,9 @@ parser * initParser()
     p->atToken=0;
     p->varValues = calloc('Z'+1, sizeof(int));//over sized array, variables can be indexed by their ascii values
     p->symList = malloc(sizeof(symbolList));
-    if(!p->symList)
+    if(p->symList==NULL)
     {
-        printError("realloc failed exiting.",__FILE__,__FUNCTION__,__LINE__);
+        printError(" p->symList = malloc(sizeof(symbolList)) failed exiting.",__FILE__,__FUNCTION__,__LINE__);
         exit(1);
     }
     p->symList->length=0;
@@ -507,25 +505,15 @@ parser * initParser()
     
     p->polishCalcStack = malloc(sizeof(stack));
     p->polishCalcStack->array = NULL;
+    p->polishCalcStack->itemsInStack=0;
     p->errorList=NULL;
     p->numberOfErrors=0;
-    getParser(p);//stores p in static variable
     return p;
 }
 
-parser * getParser(parser * store)
-{
-    static parser * stored = NULL;
-    if(store)
-    {
-        stored = store;
-    }
-    return stored;
-}
 
-void freeParser()
+void freeParser(parser * p)
 {
-    parser * p = getParser(NULL);
     freeTokenArray(p->progArray, p->numberOfTokens);
     //free error list:
     for(int i=0; i<p->numberOfErrors; ++i)
@@ -548,61 +536,101 @@ int incrementAtToken(parser * p)
     }
     else
     {
-        finishedBeforeWeExpectedError(p);
+        addErrorToList(p,"ERROR: expected program to end with a ""}""\n");
         displayErrors(p);
-        exit(1);
+        return 0;
     }
 }
 
+#pragma mark VAR value functions
+/**
+ sets the value of var (should be 'A' to 'Z', if its not it sends an erro and returns 0) to newValue 
+ and returns that value.
+*/
 int setVarValue(parser *p, char var, float newValue)
 {
+    if(var>'z' || var<'A')
+    {
+        char errStr[MAX_ERROR_STRING_SIZE];
+        sprintf(errStr, "setVarValue was passed the invalid variable charecter %c vars should be 'A' to 'Z' only.",var);
+        printError(errStr, __FILE__, __FUNCTION__, __LINE__);
+        return 0;
+    }
     p->varValues[(int)var]=newValue;
     return p->varValues[(int)var];
 }
-
+/**
+ Gets the value of var (should be 'A' to 'Z', if its not it sends an erro and returns 0)
+ and returns that value.
+ */
 float getVarValue(parser *p, char var)
 {
+    if(var>'z' || var<'A')
+    {
+        char errStr[MAX_ERROR_STRING_SIZE];
+        sprintf(errStr, "getVarValue was passed the invalid variable charecter %c vars should be 'A' to 'Z' only.",var);
+        printError(errStr, __FILE__, __FUNCTION__, __LINE__);
+        return 0;
+    }
     return p->varValues[(int)var];
 }
        
 #pragma mark symbol list functions
-void addSymToList(parser * p, symbol sym, float value)
+/**
+ Creates a symbolNode for the input values and ands it to p->symList linked list
+ symList only needs to contain FD LT and RT instructions, all others can be expanded to these.
+ if this function is called with a sym other than these, it prints an error and returns 0.
+ otherwise it returns the new length of the list
+ */
+int addSymToList(parser * p, symbol sym, float value)
 {
-    symbolNode * firstNode = malloc(sizeof(symbolNode));
-    if(firstNode==NULL)
+    symbolNode * newNode = malloc(sizeof(symbolNode));
+    if(newNode==NULL)
     {
-        printError("malloc failed.", __FILE__, __FUNCTION__, __LINE__);
+        printError("symbolNode * newNode = malloc(sizeof(symbolNode)) failed.", __FILE__, __FUNCTION__, __LINE__);
         exit(1);
     }
-    firstNode->sym = sym;
-    firstNode->value = value;
-    firstNode->next = NULL;
+    newNode->sym = sym;
+    newNode->value = value;
+    newNode->next = NULL;
+    if(sym!=symFD && sym!=symLT && sym!=symRT)
+    {
+        printError("addSymToList called a sym type that doesnt need to be placed on symList.", __FILE__, __FUNCTION__, __LINE__);
+        return 0;
+    }
     if(p->symList->length==0)
     {//if first node:
-        p->symList->start = firstNode;
-        p->symList->end = firstNode;
+        p->symList->start = newNode;
+        p->symList->end = newNode;
     }
     else
     {
-        p->symList->end->next = firstNode;
-        p->symList->end = firstNode;
+        p->symList->end->next = newNode;
+        p->symList->end = newNode;
     }
-    ++p->symList->length;
+    return (int)++p->symList->length;
 }
-
-void printSymList(parser * p)
+/**
+ Prints each node of p->symList to stdout.
+ Returns 1 if completed succesfully, 0 if there is unexpected symbols in the list.
+ */
+int printSymList(parser * p)
 {
     symbolNode * current = p->symList->start;
     printf("{\n");
     while(current)
     {
-        printSymNode(current);
+        if(printSymNode(current)==0) return 0;
         current=current->next;
     }
     printf("}\n");
+    return 1;
 }
-
-void printSymNode(symbolNode * node)
+/**
+ Prints a line detailing the contents of node to stdout.
+ Returns 1 if completed succesfully, 0 if there is an unexpected symbols.
+ */
+int printSymNode(symbolNode * node)
 {
     switch (node->sym)
     {
@@ -621,34 +649,31 @@ void printSymNode(symbolNode * node)
             printf("    LT   ");
             break;
         }
-        case symSET:
-        {
-            printf("    SET   ");
-            break;
-        }
         default:
         {
-            printError("symList contained a unexpected symbol", __FILE__, __FUNCTION__, __LINE__);
-            exit(1);
+            printError("symList contained a unexpected symbol. Only FD, RT, and LT instructions are neccessary to be added to symList, others can be expanded to just these.", __FILE__, __FUNCTION__, __LINE__);
+            return 0;
         }
     }
     printf("%f\n",node->value);
+    return 1;
 }
 
 #pragma mark polish calculator functions
 
-void pushValue(parser *p, float value)
+int pushValue(parser *p, float value)
 {
     ++p->polishCalcStack->itemsInStack;
     
     float * tmp = realloc(p->polishCalcStack->array, p->polishCalcStack->itemsInStack*sizeof(int));
-    if(!tmp)
+    if(tmp==NULL)
     {
-        printError("realloc failed. Exiting.", __FILE__, __FUNCTION__, __LINE__);
+        printError(" float * tmp = realloc(p->polishCalcStack->array, p->polishCalcStack->itemsInStack*sizeof(int)) failed. Exiting.", __FILE__, __FUNCTION__, __LINE__);
         exit(1);
     }
     p->polishCalcStack->array = tmp;
     p->polishCalcStack->array[p->polishCalcStack->itemsInStack-1]=value;
+    return p->polishCalcStack->itemsInStack;
 }
 
 int popToOperator(parser * p, operator op)
@@ -706,11 +731,15 @@ void clearCalculatorStack(parser * p)
 
 
 #pragma mark error messaging functions
+/**
+ Adds error string to the string array p->errorList.
+ @returns 1 if sucessful
+ */
 int addErrorToList(parser * p, char * errorString)
 {
     ++p->numberOfErrors;
     char ** tmp = realloc(p->errorList,p->numberOfErrors*sizeof(char*));
-    if(!tmp)
+    if(tmp==NULL)
     {
         printError("realloc failed exiting.",__FILE__,__FUNCTION__,__LINE__);
         exit(1);
@@ -719,114 +748,107 @@ int addErrorToList(parser * p, char * errorString)
     p->errorList[p->numberOfErrors-1] = strdup(errorString);
     return 1;
 }
-
-void displayErrors(parser * p)
+/**
+ Prints all of the strings int p->errorList array.
+ @returns 1
+ */
+int displayErrors(parser * p)
 {
+    printf("\n\nParsing Failed. There were %d errors:",p->numberOfErrors);
     for(int i=0; i<p->numberOfErrors; ++i)
     {
         printf("\n%s \n",p->errorList[i]);
     }
+    return 1;
 }
 
-void finishedBeforeWeExpectedError(parser * p)
+/**
+ Adds a syntax error to p->errorList array.
+ @returns 1 if successful. returns 0 and a Error message if unsuccessful.
+ */
+int syntaxError(parser * p, const char * errorString)
 {
-    addErrorToList(p,"ERROR: expected program to end with a ""}""\n");
-}
-
-void syntaxError(parser * p, const char * errorString)
-{
+    if(strlen(errorString)<1)
+    {
+        printError("Function was called with empty string.", __FILE__, __FUNCTION__, __LINE__);
+        return 0;
+    }
+    if(p->numberOfTokens<1)
+    {
+        printError("Syntax error called but there are no tokens yet.", __FILE__, __FUNCTION__, __LINE__);
+        return 0;
+    }
     char * editableErrorString = strdup(errorString);
-    char stringStart[MAX_ERROR_STRING_SIZE];
-    if(p->atToken==p->numberOfTokens-1) return;//stop a segfault if last token
-    sprintf(stringStart,"ERROR: invalid syntax at token %d ""%s"" previous token %d ""%s"". \n\n",
-            p->atToken, p->progArray[p->atToken],
-            p->atToken-1,  p->progArray[p->atToken-1]);
-    strcat(stringStart,editableErrorString);
-    addErrorToList(p,stringStart);
-    free(editableErrorString);
-}
-
-void readError(const char * whatWeRead, symbol whatWeExpect)
-{
+    char stringStart[MAX_ERROR_STRING_SIZE]={'\0'};
     
+    if(p->atToken>=1)
+    {
+        sprintf(stringStart,"ERROR: invalid syntax at token %d ""%s"" previous token %d ""%s"". \n",
+                p->atToken, p->progArray[p->atToken],
+                p->atToken-1,  p->progArray[p->atToken-1]);
+    }
+    strcat(stringStart,editableErrorString);
+    free(editableErrorString);
+    
+    return addErrorToList(p,stringStart);
 }
-
-void * whatDoWeExpectString(parser * p, symbol context)
+/**
+ Adds a line explaing the expected syntax of a symbol context to p->errorList array.
+ @returns 1 if successful. returns 0 and a Error message if unsuccessful.
+ */
+int addWhatDoWeExpectStringToErrorList(parser * p, symbol context)
 {
-    char * outputString = malloc(MAX_ERROR_STRING_SIZE);
+    char outputString[MAX_ERROR_STRING_SIZE];
+
     switch(context)
     {
         case symMAIN:
-        {
-            outputString = " Expected:\n <MAIN>        ::= ""{"" <INSTRCTLST>";
-            return outputString;
-        }
+            sprintf(outputString,"Expected: <MAIN>        ::= ""{"" <INSTRCTLST>");
+            break;
         case symINSTRCTLST:
-        {
-            outputString = " Expected:\n <INSTRCTLST>  ::= <INSTRUCTION><INSTRCTLST> | \n ""}"" ";
-            return outputString;
-        }
+            sprintf(outputString,"Expected: <INSTRCTLST>  ::= <INSTRUCTION><INSTRCTLST> | ""}"" ");
+            break;
         case symINSTRUCTION:
-        {
-            outputString = " Expected:\n <INSTRUCTION> ::= <FD> | \n <LT> | \n <RT> | \n <DO> | \n <SET>";
-            return outputString;
-        }
+            sprintf(outputString,"Expected: <INSTRUCTION> ::= <FD> | <LT> | <RT> | <DO> | <SET>");
+            break;
         case symFD:
-        {
-            outputString = " Expected:\n <FD>          ::= ""FD"" <VARNUM>";
-            return outputString;
-        }
+            sprintf(outputString, "Expected: <FD>          ::= ""FD"" <VARNUM>");
+            break;
         case symLT:
-        {
-            outputString = " Expected:\n <LT>          ::= ""LT"" <VARNUM>";
-            return outputString;
-        }
+            sprintf(outputString, "Expected: <LT>          ::= ""LT"" <VARNUM>");
+            break;
         case symRT:
-        {
-            outputString = " Expected:\n <RT>          ::= ""RT"" <VARNUM>";
-            return outputString;
-        }
+            sprintf(outputString, "Expected: <RT>          ::= ""RT"" <VARNUM>");
+            break;
         case symDO:
-        {
-            outputString = " Expected:\n <DO>          ::= ""DO"" <VAR> ""FROM"" <VARNUM> ""TO"" \n <VARNUM> ""{"" <INSTRCTLST>";
-            return outputString;
-        }
+            sprintf(outputString, "Expected: <DO>          ::= ""DO"" <VAR> ""FROM"" <VARNUM> ""TO"" <VARNUM> ""{"" <INSTRCTLST>");
+            break;
         case symVAR:
-        {
-            outputString = " Expected:\n <VAR>         ::= [A-Z]";
-            return outputString;
-        }
+            sprintf(outputString, "Expected: <VAR>         ::= [A-Z]");
+            break;
         case symVARNUM:
-        {
-            outputString = " Expected:\n <VARNUM>      ::= number | \n <VAR>";
-            return outputString;
-        }
+            sprintf(outputString, "Expected: <VARNUM>      ::= number | <VAR>");
+            break;
         case symSET:
-        {
-            outputString = " Expected:\n <SET>         ::= ""SET"" <VAR> "":="" <POLISH>";
-            return outputString;
-        }
+            sprintf(outputString,"Expected: <SET>         ::= ""SET"" <VAR> "":="" <POLISH>");
+            break;
         case symPOLISH:
-        {
-            outputString = " Expected:\n <POLISH>      ::= <OP> <POLISH> | \n <VARNUM> <POLISH> | \n "";"" ";
-            return outputString;
-        }
+            sprintf(outputString,"Expected: <POLISH>      ::= <OP> <POLISH> | <VARNUM> <POLISH> |  "";"" ");
+            break;
         case symOP:
-        {
-            outputString = " Expected:\n <OP>          ::= ""+"" | \n  ""-"" | \n ""*"" | \n ""/"" ";
-            return outputString;
-        }
+            sprintf(outputString, "Expected: <OP>          ::= ""+"" | ""-"" | ""*"" | ""/"" ");
+            break;
+        default:
+            printError("read an invalid symbol context.", __FILE__, __FUNCTION__, __LINE__);
+            return 0;
     }
-    addErrorToList(p,outputString);
-    free(outputString);
+    int successfullyAdded = addErrorToList(p,outputString);
+    return successfullyAdded ? 1 : 0;
 }
 
 #pragma mark tokenArray
 /*
- *  Takes the input string and breaks into separate words (where there is a
-    space and new string starts) each of these words is stored in the
-    commandArray which is an array of strings.
-    @returns a string array [0 to numberOfTokens-1]
+ *  Takes the input string and breaks into separate words where ever it finds a charecter contained in the delimeter string each of these words is stored in the returned array which is an array of strings. the number of strings is stored in numberOfTokensPtr.
  */
 char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char * delimiter)
 {
@@ -842,9 +864,9 @@ char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char *
     // walk through rest of string
     while( stringToken != NULL )
     {
-        if(strcmp(stringToken," ")==0 || strcmp(stringToken,",")==0)
+        if(isStringWhiteSpace(stringToken))
         {
-            //do nothing
+            //discard this token, do nothing
         }
         else
         {
@@ -872,7 +894,17 @@ char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char *
     ++calls;
     return tokenArray;
 }
-
+/**
+ Returns 1 if string is entirly whitespace ( \t\r\v\f\n)
+ */
+int isStringWhiteSpace(char * string)
+{
+    for(int i=0;string[i];++i)
+    {
+        if(!isspace(string[i])) return 0;
+    }
+    return 1;
+}
 /*
  *  frees the memory allocated to a tokenArray in tokenise func
  */
@@ -885,18 +917,228 @@ void freeTokenArray(char **tokenArray,int numberOfTokens)
     free(tokenArray);
 }
 
-#pragma developement tests
+#pragma mark developement tests
 /*
  *  Test function for developement. Prints contents of a tokenArray
  */
 void testTokenArray(char ** tokenArray, int numberOfTokens)
 {
-    printf("testTokenArray:\n");
+    printf("\ntestTokenArray:\n");
     for(int i=0; i<numberOfTokens; ++i)
     {
         printf("%d:[%s]   ",i,tokenArray[i]);
     }
-    printf("\n\n\n");
+    printf("\n\n");
+}
+
+
+
+
+/******************************************************************************/
+//Unit Tests
+#pragma mark Unit Test Prototypes
+
+void testTokenise();
+void testInitParser();
+void testIncrementToken();
+void testParserErrors();
+void testVarValueFunctions();
+void testSymListFunctions();
+void testPolishCalcFunctions();
+
+#pragma mark Parser Unit Test Functions
+
+void unitTests_parser()
+{
+    sput_start_testing();
+    sput_set_output_stream(NULL);
+
+    sput_enter_suite("testTokenise()");
+    sput_run_test(testTokenise);
+    sput_leave_suite();
+    
+    sput_enter_suite("testInitParser()");
+    sput_run_test(testInitParser);
+    sput_leave_suite();
+    
+    sput_enter_suite("testIncrementToken()");
+    sput_run_test(testIncrementToken);
+    sput_leave_suite();
+
+    sput_enter_suite("testParserErrors()");
+    sput_run_test(testParserErrors);
+    sput_leave_suite();
+    
+    sput_enter_suite("testVarValueFunctions()");
+    sput_run_test(testVarValueFunctions);
+    sput_leave_suite();
+    
+    sput_enter_suite("testSymListFunctions()");
+    sput_run_test(testSymListFunctions);
+    sput_leave_suite();
+    
+    sput_enter_suite("testPolishCalcFunctions()");
+    sput_run_test(testPolishCalcFunctions);
+    sput_leave_suite();
+
+    sput_finish_testing();
 
 }
+
+
+/**
+ Parse unit test suite.
+ tests the tokenise and freeTokenArray functions
+ */
+void testTokenise()
+{
+    int numberOfTokensTest1=0;
+    char ** test1 = tokenise("break this string up",&numberOfTokensTest1," ");
+    if(VERBOSE) testTokenArray(test1,numberOfTokensTest1);
+    sput_fail_unless(!strcmp(test1[0],"break")  &&
+                     !strcmp(test1[1],"this")   &&
+                     !strcmp(test1[2],"string") &&
+                     !strcmp(test1[3],"up")     &&
+                     numberOfTokensTest1==4 ,
+                     "Checks basic functionality. Tested with ""break this string up"" and space & comma delimeters, should return each seperate word.");
+    freeTokenArray(test1,numberOfTokensTest1);
+    
+    test1 = tokenise("\tbreak\nthis string\tup\r\n",&numberOfTokensTest1," \t\r\n");
+     if(VERBOSE) testTokenArray(test1,numberOfTokensTest1);
+    sput_fail_unless(!strcmp(test1[0],"break")  &&
+                     !strcmp(test1[1],"this")   &&
+                     !strcmp(test1[2],"string") &&
+                     !strcmp(test1[3],"up")     &&
+                     numberOfTokensTest1==4,
+                     "Checks that \r \t \n are handled correctly. Tested with ""\\tbreak\\nthis string\\tup\\r\\n"" and "" \\t\\r\\n"" delim, should return each seperate word.");
+    freeTokenArray(test1,numberOfTokensTest1);
+    
+    test1 = tokenise("  break\t   \r   this\n    \t  \r  string \r\n\t up\t    ",&numberOfTokensTest1," \t\r\n");
+    if(VERBOSE) testTokenArray(test1,numberOfTokensTest1);
+    sput_fail_unless(!strcmp(test1[0],"break")  &&
+                     !strcmp(test1[1],"this")   &&
+                     !strcmp(test1[2],"string") &&
+                     !strcmp(test1[3],"up")     &&
+                     numberOfTokensTest1==4,
+                     "Checks that tokens that contain only spaces are discarded even when it is not a delimeter. Tested with ""  break\\t   \\r   this\\n    \\t  \\r  string \\r\\n\\t up\\t    "" and ""\\t\\r\\n"" delim it should return each seperate word.");
+    freeTokenArray(test1,numberOfTokensTest1);
+}
+/**
+ Parse unit test suite.
+ tests the initParser and freeParser functions
+ */
+void testInitParser()
+{
+    parser * p = initParser();
+    sput_fail_unless(p->progArray == NULL,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->numberOfTokens == 0,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->atToken==0,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->varValues[0]==0,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->varValues['Z']==0,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->symList->length==0,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->symList->start==NULL,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->symList->end==NULL,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->polishCalcStack->array==NULL,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->polishCalcStack->itemsInStack==0,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->errorList==NULL,"Checking that all structure elements are accessible and set correctly.");
+    sput_fail_unless(p->numberOfErrors==0,"Checking that all structure elements are accessible and set correctly.");
+    freeParser(p);
+    
+}
+/**
+ Parse unit test suite.
+ tests the incrementToken functions
+ */
+void testIncrementToken()
+{
+    parser * p = initParser();
+    p->progArray = tokenise("0 1 2 3 4 5 6 7 8 9", &p->numberOfTokens, " \n\r\t\v\f");
+    for(int i = 0; i<9; ++i)
+    {
+        sput_fail_unless(incrementAtToken(p)==1, "We have made 10 tokens in progArray, check that we can then incrementAtToken 10 times successfully.");
+    }
+    sput_fail_unless(incrementAtToken(p)==0, "and on the 11th it should fail.");
+    freeParser(p);
+}
+/**
+ Parse unit test suite.
+ tests the addErrorToList, syntaxError, addWhatDoWeExpectStringToErrorList and displayErrors functions.
+ */
+void testParserErrors()
+{
+    parser * p = initParser();
+    //test addErrorToList()
+    addErrorToList(p, "test string");
+    sput_fail_unless(p->numberOfErrors==1 && strcmp(p->errorList[p->numberOfErrors-1],"test string")==0, "Checks addErrorToList.");
+    
+    //test invalid syntaxError()
+    sput_fail_unless(syntaxError(p, "testing syntaxError")==0, "calling syntaxError before we have a program loaded should print error and return 0.");
+    sput_fail_unless(syntaxError(p, "")==0, "calling syntaxError with an empty string should print error and return 0.");
+    
+    //test valid syntaxError()
+    p->progArray = tokenise("0 1 2 3 4 5 6 7 8 9", &p->numberOfTokens, " \n\r\t\v\f");
+    sput_fail_unless(syntaxError(p, "testing syntaxError")==1 && p->numberOfErrors==2, "Checks valid call of syntaxError with 0->atToken=0. ");
+    sput_fail_unless(strcmp(p->errorList[p->numberOfErrors-1], "testing syntaxError")==0, "Since p->atToken = 0 at last call we should see no tokens printed in message.");
+    
+    p->atToken=9;
+    sput_fail_unless(syntaxError(p, "testing syntaxError")==1 && p->numberOfErrors==3, "Checks syntaxError when at last token.");
+    sput_fail_unless(strcmp(p->errorList[p->numberOfErrors-1], "testing syntaxError")!=0, "Since p->atToken != 0 at last call we should see tokens printed in message.");
+    
+    for(symbol sym = symMAIN; sym<=symOP ; ++sym)
+    {
+        sput_fail_unless(addWhatDoWeExpectStringToErrorList(p, sym)==1, "Check that addWhatDoWeExpectStringToErrorList can add to the errorList");
+    }
+    sput_fail_unless(addWhatDoWeExpectStringToErrorList(p, symOP+1)==0, "Check that addWhatDoWeExpectStringToErrorList correctly handles a invalde symbol context");
+
+    printf("Calling Display Errors:");
+    sput_fail_unless(displayErrors(p)==1, "Checks displayErrors returns 1");
+    freeParser(p);
+}
+
+/**
+ Parse unit test suite.
+ tests the setVarValue and getVarValue functions.
+ */
+void testVarValueFunctions()
+{
+    parser * p = initParser();
+    for(char var = 'A'; var<='Z'; ++var)
+    {
+        float setTo = (float)rand();
+        sput_fail_unless(setVarValue(p, var, setTo)==setTo, "call setVarValue for every possibile variable A-Z");
+        sput_fail_unless(getVarValue(p, var)==setTo, "call getVarValue for every possibile variable A-Z");
+    }
+    freeParser(p);
+}
+
+
+void testSymListFunctions()
+{
+    parser * p = initParser();
+    float value=40.23;
+
+    sput_fail_unless(addSymToList(p, symFD, value)==1, "should be able to add symFD to list");
+    sput_fail_unless(addSymToList(p, symRT, value)==2, "should be able to add symRT to list");
+    sput_fail_unless(addSymToList(p, symFD, value)==3, "should be able to add symFD to list");
+    for(symbol sym = symMAIN; sym<=symOP ; ++sym)
+    {
+        if(sym==symFD || sym==symLT || sym==symRT)
+        {
+            //doNothing
+        }
+        else
+        {
+            sput_fail_unless(addSymToList(p, sym, value)==0, "should  not be able to add other syms to list.");
+        }
+    }
+    freeParser(p);
+}
+
+void testPolishCalcFunctions()
+{
+    
+}
+
+
+
 
