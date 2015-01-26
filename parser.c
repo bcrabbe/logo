@@ -69,9 +69,9 @@ int printSymList(parser * p);
 int printSymNode(symbolNode * node);
 
 //parserStruct -> polish calc functions
-void pushValue(parser *p, float value);
+int pushValue(parser *p, float value);
 int popToOperator(parser * p, operator op);
-void clearCalculatorStack(parser * p);
+void clearStack(stack * s);
 
 //parserStruct -> error list functions
 int addErrorToList(parser * p,char * errorString);
@@ -87,6 +87,27 @@ int isStringWhiteSpace(char * string);
 
 
 //Unit tests
+#pragma mark Unit Test Prototypes
+
+void testTokenise();
+void testInitParser();
+void testIncrementToken();
+void testParserErrors();
+void testVarValueFunctions();
+void testSymListFunctions();
+void testPolishCalcFunctions();
+
+void testParseVar();
+void testParseVarnum();
+void testParseOp();
+void testParsePolish();
+void testParseSet();
+void testParseFd();
+void testParseRt();
+void testParseLt();
+void testParseInstruction();
+void testParseDo();
+void testParseInstrctlst();
 
 symbolList * parse(char * inputString)
 {
@@ -147,6 +168,7 @@ int parseINSTRCTLST(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "}"))
     {
+        printf("herer\n");
         return 1;
     }
     else if(parseINSTRUCTION(p))
@@ -197,14 +219,18 @@ int parseFD(parser * p)
         else
         {
             float value;
-            parseVARNUM(p,&value);
+            if(parseVARNUM(p,&value)==0)
+            {
+                addWhatDoWeExpectStringToErrorList(p, symFD);
+                syntaxError(p,"FD could not read VARNUM.");
+                return 0;
+            }
             if(value==0)
             {
                 syntaxError(p,"FD 0 is a redundant instruction.");
                 return 1;
             }
-            addSymToList(p, symFD, value);
-            return 1;
+            return addSymToList(p, symFD, value);
         }
     }
     return 0;
@@ -218,14 +244,18 @@ int parseLT(parser * p)
         else
         {
             float value;
-            parseVARNUM(p,&value);
+            if(parseVARNUM(p,&value)==0)
+            {
+                addWhatDoWeExpectStringToErrorList(p, symLT);
+                syntaxError(p,"LT could not read VARNUM.");
+                return 0;
+            }
             if(value==0)
             {
                 syntaxError(p,"LT 0 is a redundant instruction.");
                 return 1;
             }
-            addSymToList(p, symLT, value);
-            return 1;
+            return addSymToList(p, symLT, value);
         }
    
     }
@@ -241,14 +271,18 @@ int parseRT(parser * p)
         else
         {
             float value;
-            parseVARNUM(p,&value);
+            if(parseVARNUM(p,&value)==0)
+            {
+                addWhatDoWeExpectStringToErrorList(p, symRT);
+                syntaxError(p,"RT could not read VARNUM.");
+                return 0;
+            }
             if(value==0)
             {
                 syntaxError(p,"RT 0 is a redundant instruction.");
                 return 1;
             }
-            addSymToList(p, symRT, value);
-            return 1;
+            return addSymToList(p, symRT, value);
         }
     }
 }
@@ -258,16 +292,11 @@ int parseVARNUM(parser * p, float * result)
     float value;
     if(strlen(p->progArray[p->atToken])<1)
     {
-        printError("parseVARNUM recieved a empty string. Exiting.",__FILE__,__FUNCTION__,__LINE__);
-        exit(1);
+        printError("parseVARNUM recieved a empty string.",__FILE__,__FUNCTION__,__LINE__);
+        return 0;
     }
     if(isdigit(p->progArray[p->atToken][0]))//if its a digit...
     {
-       /* if( !stringToInt(p->progArray[p->atToken],&value) )
-        {
-            syntaxError(p,"parseVARNUM expected to read a number.");
-            return 0;//if 0 means we read a non digit in the string so fails.
-        }*/
         value = atof(p->progArray[p->atToken]);
         if(incrementAtToken(p)==0) return 0;
         *result = value;
@@ -286,22 +315,24 @@ int parseVARNUM(parser * p, float * result)
         return 0;
     }
 }
-
+/**
+ Reads the token p->progArray[p->atToken], if it is a valid VAR i.e. a char 'A'-'Z' 
+ then that charecter is return, other wise 0 is.
+ */
 char parseVAR(parser * p)
 {
     if(strlen(p->progArray[p->atToken])<1)
     {
         printError("parseVAR recieved a empty string. Exiting.",__FILE__,__FUNCTION__,__LINE__);
-        exit(1);
+        return '\0';
     }
     if(!isupper(p->progArray[p->atToken][0]))
     {
-        //syntaxError(p,"Expected a variable. Variables should be any uppercase letter A-Z.");
         return '\0';
     }
     else
     {//increment token and if successful return the char
-        return incrementAtToken(p) ? p->progArray[p->atToken-1][0] : 0;
+        return incrementAtToken(p) ? p->progArray[p->atToken-1][0] : '\0';
     }
 }
 
@@ -411,14 +442,13 @@ int parseSET(parser * p)
         }
         if(incrementAtToken(p)==0) return 0;
         
-        clearCalculatorStack(p);
+        clearStack(p->polishCalcStack);
         float setToValue;
         if(parsePOLISH(p, &setToValue)==0) return 0;
-        else setVarValue(p, var, setToValue);
+        if(setVarValue(p, var, setToValue)==0) return 0;
         
         return 1;
     }
-    
 }
 
 
@@ -448,11 +478,15 @@ int parsePOLISH(parser * p, float * result)
     }
     if(parseOP(p,&op))
     {
-        popToOperator(p, op);
+        if(popToOperator(p, op)==0)
+        {
+            syntaxError(p,"polish expression incorrectly formatted.");
+            return 0;
+        }
         return parsePOLISH(p, result);
     }
     addWhatDoWeExpectStringToErrorList(p, symPOLISH);
-    syntaxError(p,"could not read VARNUM or OP.");
+    syntaxError(p,"could not read VARNUM or OP or ;.");
     return 0;
 }
 
@@ -476,9 +510,11 @@ int parseOP(parser * p, operator * op)
     {
         *op = opDivide;
     }
-    if(incrementAtToken(p)==0) return 0;
-    else return 1;
+    else return 0;
+    
+    return incrementAtToken(p) ? 1 : 0;
 }
+
 #pragma mark parser obj functions
 
 parser * initParser()
@@ -531,13 +567,12 @@ int incrementAtToken(parser * p)
     if(p->atToken < p->numberOfTokens-1)
     {
         ++p->atToken;
-        if(VERBOSE) printf("moved to token %d [%s]\n",p->atToken, p->progArray[p->atToken]);
+        //if(VERBOSE) printf("moved to token %d [%s]\n",p->atToken, p->progArray[p->atToken]);
         return 1;
     }
     else
     {
         addErrorToList(p,"ERROR: expected program to end with a ""}""\n");
-        displayErrors(p);
         return 0;
     }
 }
@@ -549,7 +584,7 @@ int incrementAtToken(parser * p)
 */
 int setVarValue(parser *p, char var, float newValue)
 {
-    if(var>'z' || var<'A')
+    if(var>'Z' || var<'A')
     {
         char errStr[MAX_ERROR_STRING_SIZE];
         sprintf(errStr, "setVarValue was passed the invalid variable charecter %c vars should be 'A' to 'Z' only.",var);
@@ -557,7 +592,7 @@ int setVarValue(parser *p, char var, float newValue)
         return 0;
     }
     p->varValues[(int)var]=newValue;
-    return p->varValues[(int)var];
+    return 1;
 }
 /**
  Gets the value of var (should be 'A' to 'Z', if its not it sends an erro and returns 0)
@@ -565,7 +600,7 @@ int setVarValue(parser *p, char var, float newValue)
  */
 float getVarValue(parser *p, char var)
 {
-    if(var>'z' || var<'A')
+    if(var>'Z' || var<'A')
     {
         char errStr[MAX_ERROR_STRING_SIZE];
         sprintf(errStr, "getVarValue was passed the invalid variable charecter %c vars should be 'A' to 'Z' only.",var);
@@ -718,15 +753,14 @@ int popToOperator(parser * p, operator op)
         exit(1);
     }
     p->polishCalcStack->array = tmp;
-    pushValue(p, result);
-    return 1;
+    return pushValue(p, result) ? 1 : 0;
 }
 
-void clearCalculatorStack(parser * p)
+void clearStack(stack * s)
 {
-    if(p->polishCalcStack->array) free(p->polishCalcStack->array);
-    p->polishCalcStack->array=NULL;
-    p->polishCalcStack->itemsInStack=0;
+    if(s->array) free(s->array);
+    s->array=NULL;
+    s->itemsInStack=0;
 }
 
 
@@ -748,17 +782,20 @@ int addErrorToList(parser * p, char * errorString)
     p->errorList[p->numberOfErrors-1] = strdup(errorString);
     return 1;
 }
+
 /**
  Prints all of the strings int p->errorList array.
  @returns 1
  */
 int displayErrors(parser * p)
 {
+    if(p->numberOfErrors==0) return 0;
     printf("\n\nParsing Failed. There were %d errors:",p->numberOfErrors);
     for(int i=0; i<p->numberOfErrors; ++i)
     {
         printf("\n%s \n",p->errorList[i]);
     }
+    printf("\n");
     return 1;
 }
 
@@ -915,6 +952,7 @@ void freeTokenArray(char **tokenArray,int numberOfTokens)
         free(tokenArray[i]);
     }
     free(tokenArray);
+    
 }
 
 #pragma mark developement tests
@@ -936,15 +974,7 @@ void testTokenArray(char ** tokenArray, int numberOfTokens)
 
 /******************************************************************************/
 //Unit Tests
-#pragma mark Unit Test Prototypes
 
-void testTokenise();
-void testInitParser();
-void testIncrementToken();
-void testParserErrors();
-void testVarValueFunctions();
-void testSymListFunctions();
-void testPolishCalcFunctions();
 
 #pragma mark Parser Unit Test Functions
 
@@ -980,6 +1010,51 @@ void unitTests_parser()
     sput_enter_suite("testPolishCalcFunctions()");
     sput_run_test(testPolishCalcFunctions);
     sput_leave_suite();
+
+    sput_enter_suite("testParseVar()");
+    sput_run_test(testParseVar);
+    sput_leave_suite();
+
+    sput_enter_suite("testParseVarnum()");
+    sput_run_test(testParseVarnum);
+    sput_leave_suite();
+    
+    sput_enter_suite("testParseOp()");
+    sput_run_test(testParseOp);
+    sput_leave_suite();
+    
+    sput_enter_suite("testParsePolish()");
+    sput_run_test(testParsePolish);
+    sput_leave_suite();
+    
+    sput_enter_suite("testParseSet()");
+    sput_run_test(testParseSet);
+    sput_leave_suite();
+
+    sput_enter_suite("testParseFd()");
+    sput_run_test(testParseFd);
+    sput_leave_suite();
+    
+    sput_enter_suite("testParseLt()");
+    sput_run_test(testParseLt);
+    sput_leave_suite();
+
+    sput_enter_suite("testParseRt()");
+    sput_run_test(testParseRt);
+    sput_leave_suite();
+
+    sput_enter_suite("testParseDo()");
+    sput_run_test(testParseDo);
+    sput_leave_suite();
+    
+    sput_enter_suite("testParseInstruction()");
+    sput_run_test(testParseInstruction);
+    sput_leave_suite();
+    
+    sput_enter_suite("testParseInstrctlst()");
+    sput_run_test(testParseInstrctlst);
+    sput_leave_suite();
+
 
     sput_finish_testing();
 
@@ -1102,16 +1177,27 @@ void testParserErrors()
 void testVarValueFunctions()
 {
     parser * p = initParser();
+    float setTo = 15.2;
     for(char var = 'A'; var<='Z'; ++var)
     {
-        float setTo = (float)rand();
-        sput_fail_unless(setVarValue(p, var, setTo)==setTo, "call setVarValue for every possibile variable A-Z");
-        sput_fail_unless(getVarValue(p, var)==setTo, "call getVarValue for every possibile variable A-Z");
+        sput_fail_unless( setVarValue(p, var, setTo), "call setVarValue for every possibile variable A-Z");
+        sput_fail_unless(getVarValue(p, var)==setTo, "call getVarValue for every possibile variable A-Z. check it returns what we just set it to.");
+        sput_fail_unless(getVarValue(p, var)==p->varValues[var], "call getVarValue for every possibile variable A-Z check it returns what is in the p->varValues array.");
+
     }
+    sput_fail_unless(setVarValue(p, 'A'-1, setTo)==0, "call setVarValue'A'-1 should print an error and return 0.");
+    sput_fail_unless(setVarValue(p, 'Z'+1, setTo)==0, "call setVarValue'Z'+1 should print an error and return 0.");
+
+    sput_fail_unless(getVarValue(p, 'A'-1)==0, "call getVarValue with 'A'-1 should print an error and return 0.");
+    sput_fail_unless(getVarValue(p, 'Z'+1)==0, "call getVarValue with 'Z'+1 should print an error and return 0.");
+
     freeParser(p);
 }
 
-
+/**
+ Parse unit test suite.
+ tests the addSymToList function.
+ */
 void testSymListFunctions()
 {
     parser * p = initParser();
@@ -1134,11 +1220,476 @@ void testSymListFunctions()
     freeParser(p);
 }
 
+/**
+ Parse unit test suite.
+ tests the PolishCalc functions.
+ */
 void testPolishCalcFunctions()
 {
+    parser * p = initParser();
+    //test pushValue()
+    float value = 10.2;
+    sput_fail_unless(pushValue(p, value)==1 &&
+                     p->polishCalcStack->array[p->polishCalcStack->itemsInStack-1]==value,
+                     "Check that pushValue is successful and that the pushed value is top of the stack after");
+    //test clearStack()
+    clearStack(p->polishCalcStack);
+    sput_fail_unless(p->polishCalcStack->itemsInStack==0 &&
+                     p->polishCalcStack->array==NULL,
+                     "Checks that itemsInStack=0 && array==NULL after clearStack.");
+    float epsilon = 0.0002;
+    //test popToOperator
+    pushValue(p, value);
+    pushValue(p, value);
+    sput_fail_unless(popToOperator(p, opPlus)==1 &&
+                     fabs(p->polishCalcStack->array[p->polishCalcStack->itemsInStack-1]-(value+value))<epsilon,
+                     "check that popToOperator with opPlus works and returns the correct result.");
+    pushValue(p, value);
+    pushValue(p, value);
+    sput_fail_unless(popToOperator(p, opMinus)==1 &&
+                     fabs(p->polishCalcStack->array[p->polishCalcStack->itemsInStack-1]-(value-value))<epsilon,
+                     "check that popToOperator with opMinus works and returns the correct result.");
+    pushValue(p, value);
+    pushValue(p, value);
+    sput_fail_unless(popToOperator(p, opMultiply)==1 &&
+                     fabs(p->polishCalcStack->array[p->polishCalcStack->itemsInStack-1]-(value*value))<epsilon,
+                     "check that popToOperator with opMultiply works and returns the correct result.");
+    pushValue(p, value);
+    pushValue(p, value);
+    sput_fail_unless(popToOperator(p, opDivide)==1 &&
+                     fabs(p->polishCalcStack->array[p->polishCalcStack->itemsInStack-1]-(value/value))<epsilon,
+                     "check that popToOperator with opMultiply works and returns the correct result.");
+    
+    freeParser(p);
+}
+
+void testParseVar()
+{
+    parser * p = initParser();
+    
+    
+    p->progArray = tokenise("s }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseVAR(p)=='\0', "s is not a valid variable so should return '\0'");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("A", &p->numberOfTokens, " ");
+    sput_fail_unless(parseVAR(p)==0, "can not increment token since there is only one, should return 0");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("S }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseVAR(p)=='S', "is valid, should return 'S'");
+    freeParser(p);
+}
+
+
+
+void testParseVarnum()
+{
+    parser * p = initParser();
+    float result=0, epsilon=0.002;
+    
+    p->progArray = tokenise("1992.232", &p->numberOfTokens, " ");
+    sput_fail_unless(parseVARNUM(p,&result)==0, "Should read the value, but since there is only 1 token, incrementing should fail and return 0.");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("1992.232 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseVARNUM(p,&result)==1 && fabs(result-1992.232)<epsilon, "Valid. Should read value 1992.232.");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("a", &p->numberOfTokens, " ");
+    sput_fail_unless(parseVARNUM(p,&result)==0, "can not increment token since there is only one, should return 0");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    setVarValue(p, 'S', 33.3);
+    p->progArray = tokenise("S }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseVARNUM(p,&result)==1 && fabs(result-33.3)<epsilon, "is valid, should return value of 'S'");
+    freeParser(p);
     
 }
 
 
+void testParseOp()
+{
+    parser * p = initParser();
+    operator op;
+    
+    p->progArray = tokenise("+", &p->numberOfTokens, " ");
+    sput_fail_unless(parseOP(p,&op)==0, "should read + but then only one token so cannot increment should return 0.");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("+ }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseOP(p,&op)==1 && op==opPlus, "Valid, should read +.");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("- }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseOP(p,&op)==1 && op==opMinus, "Valid, should read -.");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("* }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseOP(p,&op)==1 && op==opMultiply, "Valid, should read *.");
+    freeTokenArray(p->progArray, p->numberOfTokens);
+    p->atToken=0;
+
+    p->progArray = tokenise("/ }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseOP(p,&op)==1 && op==opDivide, "Valid, should read /.");
+
+    freeParser(p);
+}
+
+void testParsePolish()
+{
+    parser * p = initParser();
+    float result, epsilon=0.02;
+    
+    p->progArray = tokenise(";", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==0, " just ; is invalid syntax, should add error and return 0.");
+    displayErrors(p);
+
+    freeParser(p);
+    p=initParser();
+
+    p->progArray = tokenise("20.2 ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==1 && fabs(result-20.2)<epsilon, " just  20.2 ; } is valid syntax, should result is 20.2 and return 1.");
+    displayErrors(p);
+
+    freeParser(p);
+    p=initParser();
+
+    setVarValue(p, 'A', 20.2);
+    p->progArray = tokenise("A ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==1 && fabs(result-20.2)<epsilon, " just  A ; } is valid syntax, result is 20.2 and return 1.");
+    displayErrors(p);
+
+    freeParser(p);
+    p=initParser();
+    setVarValue(p, 'A', 20.2);
+
+    p->progArray = tokenise("A A ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==0, "A A ; } is invalid syntax, should push error and return 0.");
+    displayErrors(p);
+
+    freeParser(p);
+    p=initParser();
+    setVarValue(p, 'A', 20.2);
+
+    p->progArray = tokenise("A A * ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==1 && fabs(result-(20.2*20.2))<epsilon, "A A *; } is valid syntax, result should be 20.2^2 and return 1.");
+    displayErrors(p);
+
+    freeParser(p);
+    p=initParser();
+    setVarValue(p, 'A', 20.2);
+
+    p->progArray = tokenise("A A * - ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==0, "A A * - ; } is invalid syntax, should push error and return 0.");
+    displayErrors(p);
+
+    freeParser(p);
+    p=initParser();
+    setVarValue(p, 'A', 20.2);
+
+    p->progArray = tokenise("A A * A - ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==1 && fabs(result-(20.2*20.2-20.2))<epsilon, "A A * A - ; } is valid syntax, result should be A*A - A and returns 1.");
+
+    displayErrors(p);
+    freeParser(p);
+    p=initParser();
+    setVarValue(p, 'A', 20.2);
+
+    p->progArray = tokenise("A A * z - ;  }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==0, "A A * z - ; } is invalid syntax, should push error & return 0.");
+    displayErrors(p);
+
+    freeParser(p);
+}
+
+
+
+
+void testParseSet()
+{
+    parser * p = initParser();
+    p->progArray = tokenise("NOTSET A * z - ;  }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseSET(p)==0, "first token is not SET so should return 0");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("SET", &p->numberOfTokens, " ");
+    sput_fail_unless(parseSET(p)==0, "Not enough tokens. Sould return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("SET a }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseSET(p)==0, "a is not a valid variable. Sould return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("SET A }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseSET(p)==0, "There should be a assignment after A. Sould return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("SET A :=", &p->numberOfTokens, " ");
+    sput_fail_unless(parseSET(p)==0, "Not enough tokens. Sould return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("SET A := invalid", &p->numberOfTokens, " ");
+    sput_fail_unless(parseSET(p)==0, "invalid polish epression. Sould return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    setVarValue(p, 'B', 20.2);
+    float epsilon = 0.02;
+    p->progArray = tokenise("SET A := B C + ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseSET(p)==1 &&
+                     fabs( getVarValue(p, 'A')-(getVarValue(p, 'C')+getVarValue(p, 'B')) )<epsilon,
+                     "valid polish epression. Sould return 1 and set A to B^2.");
+
+    freeParser(p);
+
+}/*
+*/
+
+void testParseFd()
+{
+    //test parseFD
+    parser * p = initParser();
+    p->progArray = tokenise("notFD 50.2 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseFD(p)==0, "first token is not FD so should return 0");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("FD x }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseFD(p)==0 && p->numberOfErrors>0, "2nd token is not a valid VARNUM. should add error and return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("FD 0 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors>0, "FD 0 is a valid but redundant instruction. SHould add error and return 1.");
+    freeParser(p);
+    
+    p = initParser();
+    setVarValue(p, 'X', 202);
+    p->progArray = tokenise("FD X }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors==0, "FD 0 is a valid. Should return 1.");
+    freeParser(p);
+    
+    p = initParser();
+    setVarValue(p, 'X', 202);
+    p->progArray = tokenise("FD 200 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors==0, "FD 200 is a valid. Should return 1.");
+    freeParser(p);
+}
+
+void testParseRt()
+{
+    //test parseFD
+    parser * p = initParser();
+    p->progArray = tokenise("notRT 50.2 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseFD(p)==0, "first token is not FD so should return 0");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("RT x }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseRT(p)==0 && p->numberOfErrors>0, "2nd token is not a valid VARNUM. should add error and return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("RT 0 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseRT(p)==1 && p->numberOfErrors>0, "RT 0 is a valid but redundant instruction. SHould add error and return 1.");
+    freeParser(p);
+    
+    p = initParser();
+    setVarValue(p, 'X', 202);
+    p->progArray = tokenise("RT X }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseRT(p)==1 && p->numberOfErrors==0, "RT 0 is a valid. Should return 1.");
+    freeParser(p);
+    
+    p = initParser();
+    setVarValue(p, 'X', 202);
+    p->progArray = tokenise("RT 200 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseRT(p)==1 && p->numberOfErrors==0, "RT 200 is a valid. Should return 1.");
+    freeParser(p);
+    
+}
+
+void testParseLt()
+{
+    parser * p = initParser();
+    p->progArray = tokenise("notLT 50.2 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseLT(p)==0, "first token is not LT so should return 0");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("LT x }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseLT(p)==0 && p->numberOfErrors>0, "2nd token is not a valid VARNUM. should add error and return 0.");
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("LT 0 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseLT(p)==1 && p->numberOfErrors>0, "LT 0 is a valid but redundant instruction. SHould add error and return 1.");
+    freeParser(p);
+    
+    p = initParser();
+    setVarValue(p, 'X', 202);
+    p->progArray = tokenise("LT X }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseLT(p)==1 && p->numberOfErrors==0, "LT 0 is a valid. Should return 1.");
+    freeParser(p);
+    
+    p = initParser();
+    setVarValue(p, 'X', 202);
+    p->progArray = tokenise("LT 200 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseLT(p)==1 && p->numberOfErrors==0, "LT 200 is a valid. Should return 1.");
+    freeParser(p);
+    
+}
+
+
+void testParseDo()
+{
+    parser * p = initParser();
+    p->progArray = tokenise("notDO {", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 , "called with notDO } should return 0 as this is not DO.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO notAVar {", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO notAVar } should return 0 and add an error as this is not a VAR.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO A  should return 0 and add an error as A is the last token.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A notFROM {", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO A notFROM  should return 0 and add an error as it expects to read FROM.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A FROM notAVar {", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO A FROM notAVar }  should return 0 and add an error as notAVar is not a VAR.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A FROM 1 notTo {", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO A FROM 1 noTo }  should return 0 and add an error it expects to read TO.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A FROM 1 TO notAVar {", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO A FROM 1 To notAVar }  should return 0 and add an error it expects to read a Var.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A FROM 1 TO 5 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO A FROM 1 TO 5 }  should return 0 and add an error it expects to read a {.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A FROM 1 TO 5 {", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==0 && p->numberOfErrors>0, "called with DO A FROM 1 TO 5 {  should return 0 and add an error it expects to read a an instructionList.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A FROM 1 TO 5 { FD 5 } }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseDO(p)==1, "called with DO A FROM 1 TO 5 { FD 5 } }  should return 1.");
+    displayErrors(p);
+    freeParser(p);
+}
+
+void testParseInstruction()
+{
+    parser * p = initParser();
+    p->progArray = tokenise("z }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==0 , "called with z } should return 0 as this is not an instruction.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("FD 9 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==1 , "called with FD 9 } should return 1.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("RT 9 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==1 , "called with RT 9 } should return 1.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("LT 9 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==1 , "called with LT 9 } should return 1.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("SET A := 9 ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==1 , "called with SET A := 9 } should return 1.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("DO A FROM 1 TO 5 { FD 5 } }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==1 , "called with DO A FROM 1 TO 5 { FD 5 }} should return 1.");
+    displayErrors(p);
+
+    freeParser(p);
+}
+
+
+void testParseInstrctlst()
+{
+    parser * p = initParser();
+    p->progArray = tokenise("FD 9 }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==1 , "called with FD 9 } should return 1.");
+    displayErrors(p);
+    freeParser(p);
+
+    p = initParser();
+    p->progArray = tokenise("FD z }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseINSTRUCTION(p)==0 , "called with FD 9 } should return 0 and add an error.");
+    displayErrors(p);
+    freeParser(p);
+}
+
+int parseMAIN(parser * p)
+{
+    if(stringsMatch(p->progArray[p->atToken], "{"))
+    {
+        if(incrementAtToken(p)==0) return 0;
+        else return parseINSTRCTLST(p);
+    }
+    else
+    {
+        syntaxError(p,"Expected to begin program with ""{"".");
+        return 0;
+    }
+}
+
+void testParseMain()
+{
+    
+}
 
 
