@@ -18,8 +18,11 @@
 #define NUMBER_OF_DIMENSIONS 2
 #define DIM_MAX 1
 
+#define SDL_WINDOW_WIDTH 900
+#define SDL_WINDOW_HEIGHT 660
+#define STRETCH_TO_FIT_WINDOW 1
 /******************************************************************************/
-//Parser Functions
+//Parser Module
 typedef enum symbol {
     symMAIN, symINSTRCTLST, symINSTRUCTION, symFD, symLT, symRT, symDO, symVAR,
     symVARNUM, symSET, symPOLISH, symOP
@@ -42,7 +45,7 @@ symbolList * parse(char * inputString);
 
 
 /******************************************************************************/
-//Path Making Functions
+//Path Making Module
 typedef enum dimension {
     X = 0,
     Y = 1
@@ -62,7 +65,7 @@ pointArray * buildPath( symbolList * symList);
 
 
 /******************************************************************************/
-//Drawing Functions
+//Drawing Module
 void draw(pointArray * path);
 
 
@@ -70,15 +73,23 @@ void draw(pointArray * path);
 /******************************************************************************/
 //Utility Functions
 int printError(const char * errorString, const char file[], const char function[], const int line);
-char *strdup(const char * s);
+char *strdup(const char * source);
 int stringsMatch(const char * string1, const char * string2);
-
+int floatCompare(float a, float b);
+void freeSymList(symbolList * symList);
+void freePath(pointArray * path );
 
 
 /******************************************************************************/
 //Module Unit Tests
 void unitTests_main();
 void unitTests_parser();
+void unitTests_path();
+void unitTests_draw();
 
+
+//structure mocking functions for tests
+symbolList * mockSymListForPathUnitTests();
+pointArray * mockPathForDrawUnitTests();
 
 #endif

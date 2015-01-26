@@ -14,13 +14,14 @@
 
 char * readFile(const char * argv1);
 
-void unitTests();
-
 //unit test functions
+void unitTests();
 void testReadFile();
 void testStrDup();
 void testStringsMatch();
+void testFloatCompare();
 
+#pragma mark Main
 int main(int argc, const char * argv[])
 {
     if(TESTING)
@@ -37,12 +38,18 @@ int main(int argc, const char * argv[])
     if(inputString==NULL) exit(1);
     
     symbolList * symList = parse(inputString);
+    if(symList==NULL) return 0;
+    
     pointArray * path = buildPath(symList);
-    printf("%d points in path\n",path->numberOfPoints);
+    if(path==NULL) return 0;
+    
     draw(path);
+    
     return 1;
 }
 
+
+#pragma mark Input Functions
 /*
  *  Takes argv[1] which should contain a .txt file path
     reads into a malloc'd null-terminated string which is returned.
@@ -84,8 +91,17 @@ char * readFile(const char * argv1)
     return inputString;
 }
 
-#pragma mark genericFunctions
 
+
+
+
+#pragma mark Utility Functions
+/*
+ Wrapper for printing errors to call just copy and paste :
+ 
+printError("put your error string here",__FILE__, __FUNCTION__, __LINE__);
+ 
+ */
 int printError(const char * errorString, const char file[], const char function[], const int line)
 {
     if(PRINT_ERRORS)
@@ -103,16 +119,16 @@ int printError(const char * errorString, const char file[], const char function[
 /*
  *  Duplicates a string, mallocs the space.
  */
-char *strdup(const char * s)
+char *strdup(const char * source)
 {
-    size_t len = 1+strlen(s);//gets the size of s
-    char *p = malloc(len);//allocates a block big enough to hold s
-    if(p==NULL)
+    size_t len = 1+strlen(source);//gets the size of s
+    char * dest = malloc(len);//allocates a block big enough to hold s
+    if(dest==NULL)
     {
         printError("malloc in strdup() failed.", __FILE__, __FUNCTION__, __LINE__);
         exit(0);
     }
-    return memcpy(p, s, len);//returns ptr to start of string
+    return memcpy(dest, source, len);//returns ptr to start of string
 }
 
 int stringsMatch(const char * string1, const char * string2)
@@ -121,6 +137,31 @@ int stringsMatch(const char * string1, const char * string2)
     else return 0;
 }
 
+int floatCompare(float a, float b)
+{
+    float epsilon = 0.001;
+    return fabs(a-b)<epsilon ? 1 : 0;
+}
+/* frees a symbolList allocated by the parser module
+ */
+void freeSymList(symbolList * symList)
+{
+    symbolNode * current = symList->start;
+    while(current!=NULL)
+    {
+        symbolNode * toBeFreed = current;
+        current = current->next;
+        free(toBeFreed);
+    }
+    free(symList);
+}
+/* frees a path allocated by the path module
+ */
+void freePath(pointArray * path )
+{
+    free(path->array);
+    free(path);
+}
 #pragma mark Unit Tests
 
 void unitTests()
@@ -130,13 +171,24 @@ void unitTests()
     printf("********************************************************************\n\n");
     
     printf("\n\n\n********************************************************************\n");
-    printf("\n*                       Testing main.c                                   *\n\n");
+    printf("\n*                       Testing main.c                             *\n\n");
     printf("********************************************************************\n\n");
     unitTests_main();
+    
     printf("\n\n\n********************************************************************\n");
-    printf("\n*                       Testing parser.c                                 *\n\n");
+    printf("\n*                       Testing parser.c                           *\n\n");
     printf("********************************************************************\n\n");
     unitTests_parser();
+    
+    printf("\n\n\n********************************************************************\n");
+    printf("\n*                       Testing path.c                             *\n\n");
+    printf("********************************************************************\n\n");
+    unitTests_path();
+    
+    printf("\n\n\n********************************************************************\n");
+    printf("\n*                       Testing draw.c                             *\n\n");
+    printf("********************************************************************\n\n");
+    unitTests_draw();
     
 
 }
@@ -157,6 +209,11 @@ void unitTests_main()
     sput_enter_suite("testStringsMatch()");
     sput_run_test(testStringsMatch);
     sput_leave_suite();
+    
+    sput_enter_suite("testFloatCompare()");
+    sput_run_test(testFloatCompare);
+    sput_leave_suite();
+    
     
     sput_finish_testing();
 
@@ -206,3 +263,35 @@ void testStringsMatch()
     sprintf(str, "Checks that stringsMatch returns 0 for no match. Checking with %s==%s.",testString,notTestString);
     sput_fail_unless(stringsMatch(testString, notTestString)==0, str);
 }
+
+void testFloatCompare()
+{
+    sput_fail_unless(floatCompare(74.23, 74.23)==1, "Check with equal floats, should return 1.");
+    sput_fail_unless(floatCompare(74.23, 2)==0, "Check with nonequal floats, should return 0.");
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

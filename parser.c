@@ -6,7 +6,6 @@
 //  Copyright (c) 2015 ben. All rights reserved.
 //
 #include "main.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +18,6 @@ typedef enum operator {
     opMultiply = '*',
     opDivide = '/',
 } operator;
-
 
 typedef struct stack {
     int itemsInStack;
@@ -50,10 +48,7 @@ int parseSET(parser * p);
 int parseOP(parser * p, operator * op);
 int parsePOLISH(parser * p, float * result);
 
-
-
 //parserStruct functions
-
 parser * initParser();
 parser * getParser(parser * store);
 void freeParser(parser * p);
@@ -108,6 +103,7 @@ void testParseLt();
 void testParseInstruction();
 void testParseDo();
 void testParseInstrctlst();
+void testParseMain();
 
 symbolList * parse(char * inputString)
 {
@@ -115,7 +111,7 @@ symbolList * parse(char * inputString)
     if(!inputStringLength)
     {
         printError("Parser recieved a empty string. Exiting.",__FILE__,__FUNCTION__,__LINE__);
-        return 0;
+        return NULL;
     }
     parser * p = initParser();
    
@@ -137,13 +133,14 @@ symbolList * parse(char * inputString)
     {
         printSymList(p);
         displayErrors(p);
+        freeParser(p);
+        return NULL;
     }
     freeParser(p);
     return p->symList;
 }
 
 #pragma mark symbol parsers
-
 int parseMAIN(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "{"))
@@ -168,7 +165,6 @@ int parseINSTRCTLST(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "}"))
     {
-        printf("herer\n");
         return 1;
     }
     else if(parseINSTRUCTION(p))
@@ -295,7 +291,7 @@ int parseVARNUM(parser * p, float * result)
         printError("parseVARNUM recieved a empty string.",__FILE__,__FUNCTION__,__LINE__);
         return 0;
     }
-    if(isdigit(p->progArray[p->atToken][0]))//if its a digit...
+    if(isdigit(p->progArray[p->atToken][0]) )//if its a digit...
     {
         value = atof(p->progArray[p->atToken]);
         if(incrementAtToken(p)==0) return 0;
@@ -315,6 +311,7 @@ int parseVARNUM(parser * p, float * result)
         return 0;
     }
 }
+
 /**
  Reads the token p->progArray[p->atToken], if it is a valid VAR i.e. a char 'A'-'Z' 
  then that charecter is return, other wise 0 is.
@@ -335,7 +332,6 @@ char parseVAR(parser * p)
         return incrementAtToken(p) ? p->progArray[p->atToken-1][0] : '\0';
     }
 }
-
 
 /*
  * <DO> ::=  "DO" <VAR> "FROM" <VARNUM> "TO"  <VARNUM> "{" <INSTRCTLST>
@@ -490,8 +486,9 @@ int parsePOLISH(parser * p, float * result)
     return 0;
 }
 
-
-
+/*
+ * <SET> ::= "SET" <VAR> ":=" <POLISH>
+ */
 int parseOP(parser * p, operator * op)
 {
     if(stringsMatch(p->progArray[p->atToken], "+"))
@@ -516,7 +513,9 @@ int parseOP(parser * p, operator * op)
 }
 
 #pragma mark parser obj functions
-
+/**
+ builds and returns a * to parser struct.
+ */
 parser * initParser()
 {
     parser * p = malloc(sizeof(parser));
@@ -547,7 +546,9 @@ parser * initParser()
     return p;
 }
 
-
+/**
+ free's p except for p->symList since this is returned by parse()
+ */
 void freeParser(parser * p)
 {
     freeTokenArray(p->progArray, p->numberOfTokens);
@@ -562,6 +563,10 @@ void freeParser(parser * p)
     //do not want to free symlist as this is returned.
 }
 
+/**
+ Increments p->atToken if possible and returns 1. 
+ if there is not another token it returns 0.
+ */
 int incrementAtToken(parser * p)
 {
     if(p->atToken < p->numberOfTokens-1)
@@ -594,6 +599,7 @@ int setVarValue(parser *p, char var, float newValue)
     p->varValues[(int)var]=newValue;
     return 1;
 }
+
 /**
  Gets the value of var (should be 'A' to 'Z', if its not it sends an erro and returns 0)
  and returns that value.
@@ -645,6 +651,7 @@ int addSymToList(parser * p, symbol sym, float value)
     }
     return (int)++p->symList->length;
 }
+
 /**
  Prints each node of p->symList to stdout.
  Returns 1 if completed succesfully, 0 if there is unexpected symbols in the list.
@@ -661,6 +668,7 @@ int printSymList(parser * p)
     printf("}\n");
     return 1;
 }
+
 /**
  Prints a line detailing the contents of node to stdout.
  Returns 1 if completed succesfully, 0 if there is an unexpected symbols.
@@ -695,7 +703,10 @@ int printSymNode(symbolNode * node)
 }
 
 #pragma mark polish calculator functions
-
+/**
+ accesses p->polishCalcStack. pushes value onto the top of the stack.
+ returns the number of items now in the stack.
+ */
 int pushValue(parser *p, float value)
 {
     ++p->polishCalcStack->itemsInStack;
@@ -711,6 +722,12 @@ int pushValue(parser *p, float value)
     return p->polishCalcStack->itemsInStack;
 }
 
+/**
+ accesses p->polishCalcStack poping the top two values off and combining them with
+ operator op. the top item goes to the rhs the 2nd top goes lhs. the result is pushed 
+ back on to the stack.
+ returns 1 if successful 0 if not.
+ */
 int popToOperator(parser * p, operator op)
 {
     if(p->polishCalcStack->itemsInStack<2)
@@ -745,7 +762,6 @@ int popToOperator(parser * p, operator op)
         }
     }
     p->polishCalcStack->itemsInStack -= 2;
-    
     float * tmp = realloc(p->polishCalcStack->array, p->polishCalcStack->itemsInStack*sizeof(int));
     if(!tmp)
     {
@@ -756,6 +772,9 @@ int popToOperator(parser * p, operator op)
     return pushValue(p, result) ? 1 : 0;
 }
 
+/**
+ resets stack struct.
+ */
 void clearStack(stack * s)
 {
     if(s->array) free(s->array);
@@ -829,6 +848,7 @@ int syntaxError(parser * p, const char * errorString)
     
     return addErrorToList(p,stringStart);
 }
+
 /**
  Adds a line explaing the expected syntax of a symbol context to p->errorList array.
  @returns 1 if successful. returns 0 and a Error message if unsuccessful.
@@ -931,6 +951,7 @@ char ** tokenise(const char * inputString, int * numberOfTokensPtr, const char *
     ++calls;
     return tokenArray;
 }
+
 /**
  Returns 1 if string is entirly whitespace ( \t\r\v\f\n)
  */
@@ -942,6 +963,7 @@ int isStringWhiteSpace(char * string)
     }
     return 1;
 }
+
 /*
  *  frees the memory allocated to a tokenArray in tokenise func
  */
@@ -969,12 +991,8 @@ void testTokenArray(char ** tokenArray, int numberOfTokens)
     printf("\n\n");
 }
 
-
-
-
 /******************************************************************************/
 //Unit Tests
-
 
 #pragma mark Parser Unit Test Functions
 
@@ -1055,11 +1073,14 @@ void unitTests_parser()
     sput_run_test(testParseInstrctlst);
     sput_leave_suite();
 
+    sput_enter_suite("testParseMain()");
+    sput_run_test(testParseMain);
+    sput_leave_suite();
+
 
     sput_finish_testing();
 
 }
-
 
 /**
  Parse unit test suite.
@@ -1098,6 +1119,7 @@ void testTokenise()
                      "Checks that tokens that contain only spaces are discarded even when it is not a delimeter. Tested with ""  break\\t   \\r   this\\n    \\t  \\r  string \\r\\n\\t up\\t    "" and ""\\t\\r\\n"" delim it should return each seperate word.");
     freeTokenArray(test1,numberOfTokensTest1);
 }
+
 /**
  Parse unit test suite.
  tests the initParser and freeParser functions
@@ -1120,6 +1142,7 @@ void testInitParser()
     freeParser(p);
     
 }
+
 /**
  Parse unit test suite.
  tests the incrementToken functions
@@ -1135,6 +1158,7 @@ void testIncrementToken()
     sput_fail_unless(incrementAtToken(p)==0, "and on the 11th it should fail.");
     freeParser(p);
 }
+
 /**
  Parse unit test suite.
  tests the addErrorToList, syntaxError, addWhatDoWeExpectStringToErrorList and displayErrors functions.
@@ -1182,7 +1206,7 @@ void testVarValueFunctions()
     {
         sput_fail_unless( setVarValue(p, var, setTo), "call setVarValue for every possibile variable A-Z");
         sput_fail_unless(getVarValue(p, var)==setTo, "call getVarValue for every possibile variable A-Z. check it returns what we just set it to.");
-        sput_fail_unless(getVarValue(p, var)==p->varValues[var], "call getVarValue for every possibile variable A-Z check it returns what is in the p->varValues array.");
+        sput_fail_unless(getVarValue(p, var)==p->varValues[(int)var], "call getVarValue for every possibile variable A-Z check it returns what is in the p->varValues array.");
 
     }
     sput_fail_unless(setVarValue(p, 'A'-1, setTo)==0, "call setVarValue'A'-1 should print an error and return 0.");
@@ -1263,10 +1287,10 @@ void testPolishCalcFunctions()
     freeParser(p);
 }
 
+#pragma mark Sym Parser Unit Tests
 void testParseVar()
 {
     parser * p = initParser();
-    
     
     p->progArray = tokenise("s }", &p->numberOfTokens, " ");
     sput_fail_unless(parseVAR(p)=='\0', "s is not a valid variable so should return '\0'");
@@ -1282,8 +1306,6 @@ void testParseVar()
     sput_fail_unless(parseVAR(p)=='S', "is valid, should return 'S'");
     freeParser(p);
 }
-
-
 
 void testParseVarnum()
 {
@@ -1311,7 +1333,6 @@ void testParseVarnum()
     freeParser(p);
     
 }
-
 
 void testParseOp()
 {
@@ -1411,9 +1432,6 @@ void testParsePolish()
     freeParser(p);
 }
 
-
-
-
 void testParseSet()
 {
     parser * p = initParser();
@@ -1456,8 +1474,7 @@ void testParseSet()
 
     freeParser(p);
 
-}/*
-*/
+}
 
 void testParseFd()
 {
@@ -1474,20 +1491,21 @@ void testParseFd()
     
     p = initParser();
     p->progArray = tokenise("FD 0 }", &p->numberOfTokens, " ");
-    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors>0, "FD 0 is a valid but redundant instruction. SHould add error and return 1.");
+    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors>0, "FD 0 }is a valid but redundant instruction. SHould add error and return 1.");
     freeParser(p);
     
     p = initParser();
     setVarValue(p, 'X', 202);
     p->progArray = tokenise("FD X }", &p->numberOfTokens, " ");
-    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors==0, "FD 0 is a valid. Should return 1.");
+    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors==0, "FD X } is a valid. Should return 1.");
     freeParser(p);
     
     p = initParser();
-    setVarValue(p, 'X', 202);
     p->progArray = tokenise("FD 200 }", &p->numberOfTokens, " ");
-    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors==0, "FD 200 is a valid. Should return 1.");
+    sput_fail_unless(parseFD(p)==1 && p->numberOfErrors==0, "FD 200 } is a valid. Should return 1.");
     freeParser(p);
+    
+
 }
 
 void testParseRt()
@@ -1552,7 +1570,6 @@ void testParseLt()
     freeParser(p);
     
 }
-
 
 void testParseDo()
 {
@@ -1657,7 +1674,6 @@ void testParseInstruction()
     freeParser(p);
 }
 
-
 void testParseInstrctlst()
 {
     parser * p = initParser();
@@ -1673,23 +1689,44 @@ void testParseInstrctlst()
     freeParser(p);
 }
 
-int parseMAIN(parser * p)
-{
-    if(stringsMatch(p->progArray[p->atToken], "{"))
-    {
-        if(incrementAtToken(p)==0) return 0;
-        else return parseINSTRCTLST(p);
-    }
-    else
-    {
-        syntaxError(p,"Expected to begin program with ""{"".");
-        return 0;
-    }
-}
-
 void testParseMain()
 {
+    parser * p = initParser();
+    p->progArray = tokenise(">", &p->numberOfTokens, " ");
+    sput_fail_unless(parseMAIN(p)==0 , "called with > should return 0 and display an error.");
+    displayErrors(p);
+    freeParser(p);
     
+    p = initParser();
+    p->progArray = tokenise("{", &p->numberOfTokens, " ");
+    sput_fail_unless(parseMAIN(p)==0 , "called with {, not enough tokens, should return 0 and display an error.");
+    displayErrors(p);
+    freeParser(p);
+    
+    p = initParser();
+    p->progArray = tokenise("{ RT 9 } }", &p->numberOfTokens, " ");
+    sput_fail_unless(parseMAIN(p)==1 , "called with { RT 9 }, this is valid, should return 1.");
+    displayErrors(p);
+    freeParser(p);
 }
 
-
+/**
+ Builds a symbolList for use in path.c unit tests, if you change this you
+ need to update void testBuildPath() in path.c and void testGetScaler() in draw.c
+ */
+symbolList * mockSymListForPathUnitTests()
+{
+    parser * p = initParser();
+    addSymToList(p, symFD, 20);
+    addSymToList(p, symRT, 90);
+    addSymToList(p, symFD, 20);
+    addSymToList(p, symLT, 90);
+    addSymToList(p, symFD, 20);
+    addSymToList(p, symRT, 180);
+    addSymToList(p, symFD, 40);
+    addSymToList(p, symRT, 90);
+    addSymToList(p, symFD, 20);
+    symbolList * symList = p->symList;
+    freeParser(p);//note that this function never frees p->symList.
+    return symList;
+}

@@ -25,65 +25,65 @@ typedef struct scaler {
     float offset[NUMBER_OF_DIMENSIONS];
 } scaler;
 
-void startSDL(display *d);
-void checkSDLwinClosed(display *d);
+#pragma mark prototypes
+scaler * getScaler(display * d, pointArray * path);
+pointArray * scale(pointArray * path, scaler * s);
+//SDL functions
+display * startSDL();
+int checkSDLwinClosed(display *d);
 void quitSDL(display * d);
-scaler getScaler(display * d, pointArray * path);
 
 
-pointArray * scale(pointArray * path, scaler s)
-{
-    pointArray * scaledPath = malloc(sizeof(pointArray));
-    scaledPath->numberOfPoints = path->numberOfPoints;
-    scaledPath->array = malloc(path->numberOfPoints*sizeof(point));
-    for(int point = 0; point<path->numberOfPoints; ++point)
-    {
-        for(dimension dim = X; dim<=DIM_MAX; ++dim)
-        {
-            scaledPath->array[point].r[dim] = path->array[point].r[dim]*s.scale[dim] + s.offset[dim];
-        }
-        // printf("scale (%f,%f)->(%f,%f)\n",path->array[point].r[X],path->array[point].r[Y],
-        //  scaledPath->array[point].r[X],scaledPath->array[point].r[Y]);
+#pragma mark Unit Test Prototypes
+void testStartSDL();
+void testGetScaler();
+void testScalePath();
 
-    }
-    return scaledPath;
-}
-
+#pragma mark draw functions
 void draw(pointArray * path)
 {
-    display * d = malloc(sizeof(display));
-    startSDL(d);
-    scaler s = getScaler(d, path);
-    //printf("sX = %f, sY = %f px/unit offset x = %f y = %f\n",s.scale[X],s.scale[Y],s.offset[X],s.offset[Y]);
+    display * d = startSDL();
+    
+    scaler * s = getScaler(d, path);
     pointArray * scaledPath = scale(path, s);
+    
     SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
     SDL_RenderClear(d->renderer);
     SDL_SetRenderDrawColor( d->renderer, 0xFF, 0xFF, 0xFF, 0xFF );
     for(int point = 0; point<path->numberOfPoints-1; ++point)
     {
-        //SDL_SetRenderDrawColor( d->renderer, rand()%255, 0, rand()%255, 0xFF );
-        //  printf("(%f,%f)->(%f,%f)\n",scaledPath->array[point].r[X],scaledPath->array[point].r[Y],
-        //     scaledPath->array[point+1].r[X],scaledPath->array[point+1].r[Y]);
         SDL_RenderDrawLine(d->renderer,
                            scaledPath->array[point].r[X],scaledPath->array[point].r[Y],
                            scaledPath->array[point+1].r[X],scaledPath->array[point+1].r[Y]);
-
     }
     SDL_RenderPresent(d->renderer);
     while(!d->finished)
     {
         checkSDLwinClosed(d);
     }
+    free(s);//free scaler
+    freePath(path);//free unscaled path
+    freePath(scaledPath);
     quitSDL(d);
 }
 
-    
-scaler getScaler(display * d, pointArray * path)
+
+/*
+ Takes path and works out what the px/unit (FD) distance should be to fit the
+ entire path on to 90% of the screen. It also works out the translation vector required to
+ move the path into the centre of the window.
+ It returns a malloc'd scaler *
+ */
+scaler * getScaler(display * d, pointArray * path)
 {
-    scaler s;
+    scaler * s = malloc(sizeof(scaler));
+    if(s==NULL)
+    {
+        printError("scaler * s = malloc(sizeof(scaler)) failed exiting.",__FILE__,__FUNCTION__,__LINE__);
+        return NULL;
+    }
     float rMin[NUMBER_OF_DIMENSIONS]={0};
     float rMax[NUMBER_OF_DIMENSIONS]={0};
-    
     for(int point = 0; point<path->numberOfPoints; ++point)
     {
         for(dimension dim = X; dim<=DIM_MAX; ++dim)
@@ -98,27 +98,85 @@ scaler getScaler(display * d, pointArray * path)
             }
         }
     }
-    //  printf("min(%f,%f) max(%f,%f)\n",rMin[X],rMin[Y],rMax[X],rMax[Y]);
+    float spanOfPath[2] = { rMax[X]-rMin[X],
+                            rMax[Y]-rMin[Y] };
+    
+    float centreOfPath[2] = {   (rMax[X]-rMin[X])/2,
+                                (rMax[Y]-rMin[Y])/2     };
+
+    float centreOfWindow[2] = { (float)d->winSize[X]/2,
+                                (float)d->winSize[Y]/2 };
+
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
-    {//want the total spans to take up 90% of the window:
-        s.scale[dim] = (0.9*(float)d->winSize[dim])/(rMax[dim]-rMin[dim]);
-        s.offset[dim] = d->winSize[dim]/2-((rMax[dim]+rMin[dim])/2);
+    {
+        s->scale[dim] = 0.9*( (float)d->winSize[dim]  / spanOfPath[dim]);
+        s->offset[dim] =  - s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim];
+    }
+    
+    if(!STRETCH_TO_FIT_WINDOW)
+    {//if we dont want to alter ratio then use the smallest scale for both.
+        if( s->scale[X] < s->scale[Y] ) s->scale[Y] = s->scale[X];
+        if( s->scale[X] > s->scale[Y] ) s->scale[X] = s->scale[Y];
+    }
+    if(VERBOSE)
+    {
+        printf("scale: %f,%f\n", s->scale[X], s->scale[Y]);
+        printf("offset: %f,%f\n", s->offset[X], s->offset[Y]);
     }
     return s;
 }
-
-                           
-                           
-void startSDL(display *d)
+/**
+ Takes path and transforms each point: path->array[point].r[dim]*s->scale[dim] + s->offset[dim]
+ This maps the points on to the display coordinates.
+ returns a new, malloc'd, path. This and the old one should be free'd.
+ */
+pointArray * scale(pointArray * path, scaler * s)
 {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        fprintf(stderr, "\nUnable to initialize SDL:  %s\n", SDL_GetError());
+    pointArray * scaledPath = malloc(sizeof(pointArray));
+    if(scaledPath==NULL)
+    {
+        printError("pointArray * scaledPath = malloc(sizeof(pointArray)) failed exiting.",
+                   __FILE__,__FUNCTION__,__LINE__);
+        return NULL;
+    }
+    scaledPath->numberOfPoints = path->numberOfPoints;
+    scaledPath->array = malloc(path->numberOfPoints*sizeof(point));
+    if(scaledPath->array==NULL)
+    {
+        printError("scaledPath->array = malloc(path->numberOfPoints*sizeof(point)) failed exiting.",
+                   __FILE__,__FUNCTION__,__LINE__);
+        return NULL;
+    }
+    for(int point = 0; point<path->numberOfPoints; ++point)
+    {
+        for(dimension dim = X; dim<=DIM_MAX; ++dim)
+        {
+            scaledPath->array[point].r[dim] = path->array[point].r[dim]*s->scale[dim] + s->offset[dim];
+        }
+    }
+    return scaledPath;
+}
+
+#pragma mark SDL functions
+display * startSDL()
+{
+    display * d = malloc(sizeof(display));
+    if(d==NULL)
+    {
+        printError("display * d = malloc(sizeof(display)) failed exiting.",__FILE__,__FUNCTION__,__LINE__);
+        return NULL;
+    }
+    if(SDL_Init(SDL_INIT_VIDEO) != 0)
+    {
+        char errStr[MAX_ERROR_STRING_SIZE];
+        sprintf(errStr, "Unable to initialize SDL:  %s", SDL_GetError());
+        printError(errStr, __FILE__, __FUNCTION__, __LINE__);
         SDL_Quit();
-        exit(1);
+        free(d);
+        return NULL;
     }
     d->finished = 0;
     d->skip = 0;
-    
     d->winSize[X] = 900;
     d->winSize[Y] = 660;
     d->win= SDL_CreateWindow("SDL Window",
@@ -126,41 +184,60 @@ void startSDL(display *d)
                              SDL_WINDOWPOS_UNDEFINED,
                              d->winSize[X], d->winSize[Y],
                              SDL_WINDOW_SHOWN);
-    if(d->win == NULL) {
-        fprintf(stderr, "\nUnable to initialize SDL Window:  %s\n", SDL_GetError());
+    if(d->win == NULL)
+    {
+        char errStr[MAX_ERROR_STRING_SIZE];
+        sprintf(errStr, "Unable to initialize SDL Window:  %s", SDL_GetError());
+        printError(errStr, __FILE__, __FUNCTION__, __LINE__);
         SDL_Quit();
-        exit(1);
+        free(d);
+        return NULL;
     }
-    
     d->renderer = SDL_CreateRenderer(d->win, -1, 0);
-    if(d->renderer == NULL) {
-        fprintf(stderr, "\nUnable to initialize SDL Renderer:  %s\n", SDL_GetError());
+    if(d->renderer == NULL)
+    {
+        char errStr[MAX_ERROR_STRING_SIZE];
+        sprintf(errStr, "Unable to initialize SDL renderer:  %s", SDL_GetError());
+        printError(errStr, __FILE__, __FUNCTION__, __LINE__);
         SDL_Quit();
-        exit(1);
+        free(d);
+        return NULL;
     }
     
     d->event = malloc(sizeof(SDL_Event));
-    
+    if(d->event==NULL)
+    {
+        printError("d->event = malloc(sizeof(SDL_Event)) failed exiting.",__FILE__,__FUNCTION__,__LINE__);
+        return NULL;
+    }
     SDL_SetRenderDrawColor(d->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
     if(SDL_RenderClear(d->renderer)<0)
     {
-        printf( "Could not renderClear in startSDL Error: %s\n", SDL_GetError() );
-        exit(6);
+        char errStr[MAX_ERROR_STRING_SIZE];
+        sprintf(errStr, "Could not renderClear in startSDL Error: %s", SDL_GetError());
+        printError(errStr, __FILE__, __FUNCTION__, __LINE__);
+        SDL_Quit();
+        free(d);
+        return NULL;
     }
     SDL_RenderPresent(d->renderer);
+    return d;
 }
 
 /*  Call frequently to see if the wind has been closed
  then check d->finished to see if this is the case
  */
-void checkSDLwinClosed(display *d)
+int checkSDLwinClosed(display *d)
 {
     if(SDL_PollEvent(d->event))
     {
-        if( d->event->type == SDL_QUIT ) {
+        if( d->event->type == SDL_QUIT )
+        {
             d->finished = 1;
+            return 1;
         }
     }
+    return 0;
 }
 
 /* call if window is closed
@@ -174,6 +251,92 @@ void quitSDL(display * d)
     d->win = NULL;
     SDL_Quit();
 }
+
+#pragma mark Unit Test Functions
+void unitTests_draw()
+{
+    sput_start_testing();
+    sput_set_output_stream(NULL);
+    
+    sput_enter_suite("testStartSDL()");
+    sput_run_test(testStartSDL);
+    sput_leave_suite();
+
+    sput_enter_suite("testGetScaler()");
+    sput_run_test(testGetScaler);
+    sput_leave_suite();
+
+    sput_enter_suite("testScalePath()");
+    sput_run_test(testScalePath);
+    sput_leave_suite();
+    
+    sput_finish_testing();
+}
+
+
+void testStartSDL()
+{
+    display * d = startSDL();
+    
+    sput_fail_unless(d->finished==0, "Checking all elements of d are accessible and correctly set.");
+    sput_fail_unless(d->skip==0, "Checking all elements of d are accessible and correctly set.");
+    sput_fail_unless(d->winSize[X]==SDL_WINDOW_WIDTH, "Checking all elements of d are accessible and correctly set.");
+    sput_fail_unless(d->winSize[Y]==SDL_WINDOW_HEIGHT, "Checking all elements of d are accessible and correctly set.");
+    sput_fail_unless(d->win!=NULL, "Checking all elements of d are accessible and correctly set.");
+    sput_fail_unless(d->renderer!=NULL, "Checking all elements of d are accessible and correctly set.");
+    sput_fail_unless(d->event!=NULL, "Checking all elements of d are accessible and correctly set.");
+}
+
+void testGetScaler()
+{
+    display * d = startSDL();
+    pointArray * path = mockPathForDrawUnitTests();
+    scaler * s = getScaler(d, path);
+    /*  this is the mock path:
+        0,0
+        20,0
+        20,20
+        40,20
+        0,20
+        0,0
+(0,0)----------(20,0)
+    |          |
+    |          |
+    |          |
+    |          |(20,20)
+    |          |___________
+(0,20)---------------------(40,20)
+     */
+    sput_fail_unless(floatCompare(s->scale[X],(0.9*(float)d->winSize[X])/(40)),
+                     "the x scaler should be set to this value.");
+    sput_fail_unless(floatCompare(s->scale[Y],(0.9*(float)d->winSize[Y])/(20)),
+                     "the y scaler should be set to this value.");
+    sput_fail_unless(floatCompare(s->offset[X],(float)d->winSize[X]/2-s->scale[X]*20),
+                     "the x offset should be set to this value.");
+    sput_fail_unless(floatCompare(s->offset[Y],(float)d->winSize[Y]/2-s->scale[Y]*10),
+                     "the y offset should be set to this value.");
+}
+
+void testScalePath()
+{
+    display * d = startSDL();
+    pointArray * path = mockPathForDrawUnitTests();
+    scaler * s = getScaler(d, path);
+    pointArray * scaledPath = scale(path, s);
+    for(int point = 0; point<scaledPath->numberOfPoints; ++point)
+    {
+        for(dimension dim=X;dim<=DIM_MAX;++dim)
+        {
+            sput_fail_unless( scaledPath->array[point].r[dim] <= d->winSize[dim] &&
+                              scaledPath->array[point].r[dim] >= 0,
+            "Each coordinate of the scaled path should be within the window dimensions");
+
+        }
+    }
+}
+
+
+
 
 
 
