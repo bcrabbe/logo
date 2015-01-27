@@ -1,0 +1,12 @@
+{
+   DO A FROM 1 TO 80 {
+      SET C := A 1 * ;
+      FD C
+      RT 213
+        SET D := A 1.5 * ;
+        FD D
+        RT 13
+	UT 13
+}
+}
+

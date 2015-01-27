@@ -23,26 +23,37 @@ typedef struct display
 typedef enum sdlKey {
     UP = 1,
     DOWN = -1,
+    LEFT = -2,
+    RIGHT = +2,
     NONE = 0
 } sdlKey;
 
 typedef struct scaler {
-    float scale[NUMBER_OF_DIMENSIONS];//pixcels per unit distance
-    float offset[NUMBER_OF_DIMENSIONS];
+    float scale[2];//pixcels per unit distance
+    float offset[2];//px
+    float imageDimension[3];
+    float minZ;//the minumum Z value
 } scaler;
 
+typedef enum rotate {
+    rotateAroundX,
+    rotateAroundY,
+} rotation;
 #pragma mark prototypes
 scaler * getScaler(display * d, pointArray * path);
-pointArray * scale(pointArray * path, scaler * s);
-void renderPath(display * d, pointArray * path);
+pointArray * renderPath(pointArray * path, scaler * s);
+pointArray * scalePath(pointArray * path2d, scaler * s);
+void drawPath(display * d, pointArray * path);
 sdlKey getSdlKeyPresses(display * d);
 void zoom(scaler * s, int zoomIn);
+void rotatePath(pointArray * path, rotation , float angle);
+void transformPoint( point * vector, float matrix[3][3] );
 
 display * startSDL();
 int checkSDLwinClosed(display *d);
 void quitSDL(display * d);
 
-void printPath(pointArray * path );
+void printPath(pointArray * path, dimension maxDim);
 
 #pragma mark Unit Test Prototypes
 void testStartSDL();
@@ -55,36 +66,67 @@ void testScalePath();
  */
 void draw(pointArray * path)
 {
-    if(VERBOSE) printPath(path);
+    printf("\n\noriginal path :\n");
+    if(VERBOSE) printPath(path,Z);
 
     display * d = startSDL();
     
     scaler * s = getScaler(d, path);
-    pointArray * scaledPath = scale(path, s);
-    if(VERBOSE) printPath(scaledPath);
-    printf("Prese up and down arrows to zoom in/out.\n");
+    pointArray * path2d = renderPath(path, s);
+    printf("\n\n\nrendered path :\n");
+    if(VERBOSE) printPath(path2d,Y);
+    free(s);//free old scaler
+    s = getScaler(d, path2d);
+    pointArray * scaled2dPath = scalePath(path2d, s);
+    printf("\n\nScaled2dPath :\n");
+    if(VERBOSE) printPath(scaled2dPath,Y);
+
+    freePath(path2d);
+    printf("Press arrows to rotate.\n");
+    sdlKey key = NONE;
     while(!d->finished)
     {
-        renderPath(d, scaledPath);
+        drawPath(d, scaled2dPath);
         checkSDLwinClosed(d);
-        SDL_Delay(1e3/FPS);
-        sdlKey key = getSdlKeyPresses(d);
-        if(key==UP) zoom(s,1);//zoomin
-        if(key==DOWN) zoom(s,0);//zoomout
-        freePath(scaledPath);
-        scaledPath = scale(path, s);
+        key = getSdlKeyPresses(d);
+        if(key!=NONE && !d->finished)
+        {
+            if(key==UP) rotatePath(path, rotateAroundY, +ROTATION_SENSITIVITY );
+            if(key==DOWN) rotatePath(path, rotateAroundY, -ROTATION_SENSITIVITY);
+            if(key==LEFT) rotatePath(path, rotateAroundX, -ROTATION_SENSITIVITY );
+            if(key==RIGHT) rotatePath(path, rotateAroundX, ROTATION_SENSITIVITY);
+            if(ADJUST_ZOOM_TO_FIT_ROTATED_OBJECT)
+            {
+                free(s);//free old scaler
+                s = getScaler(d, path);
+            }
+            printf("\n\nRotated 3dPath :\n");
+            if(VERBOSE) printPath(path,Z);
+            
+            path2d = renderPath(path, s);
+            printf("\n\nRotated 2dPath :\n");
+            if(VERBOSE) printPath(path2d,Y);
+            
+            free(s);//free old scaler
+            s = getScaler(d, path2d);
+            scaled2dPath = scalePath(path2d, s);
+            printf("\n\nRotated and scaled 2dPath :\n");
+            if(VERBOSE) printPath(scaled2dPath, Y);
+        }
     }
     free(s);//free scaler
     freePath(path);//free unscaled path
-    freePath(scaledPath);
+    freePath(scaled2dPath);
     quitSDL(d);
 }
 
-void printPath(pointArray * path )
+void printPath(pointArray * path, dimension maxDim)
 {
     for(int p=0; p<path->numberOfPoints; ++p)
     {
-        printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
+       if(maxDim==Y) printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
+       else if(maxDim==Z) printf("( %f, %f, %f)\n",path->array[p].r[X], path->array[p].r[Y], path->array[p].r[Z]);
+
     }
 }
 
@@ -109,7 +151,7 @@ scaler * getScaler(display * d, pointArray * path)
     float rMax[NUMBER_OF_DIMENSIONS]={0};
     for(int point = 0; point<path->numberOfPoints; ++point)
     {
-        for(dimension dim = X; dim<=DIM_MAX; ++dim)
+        for(dimension dim = X; dim<=Z; ++dim)
         {
             if(path->array[point].r[dim] > rMax[dim])
             {
@@ -121,18 +163,21 @@ scaler * getScaler(display * d, pointArray * path)
             }
         }
     }
-    float spanOfPath[2] = { rMax[X]-rMin[X],
-                            rMax[Y]-rMin[Y] };
+    float spanOfPath[3] = { rMax[X]-rMin[X],
+                            rMax[Y]-rMin[Y],
+                            rMax[Z]-rMin[Z] };
     float centreOfPath[2] = {   (rMax[X]-rMin[X])/2,
                                 (rMax[Y]-rMin[Y])/2 };
     float centreOfWindow[2] = { (float)d->winSize[X]/2,
                                 (float)d->winSize[Y]/2 };
-    for(dimension dim = X; dim<=DIM_MAX; ++dim)
+    for(dimension dim = X; dim<=Y; ++dim)
     {
         s->scale[dim] = 0.8*( (float)d->winSize[dim]  / spanOfPath[dim]);
         s->offset[dim] =  -s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim] + s->scale[dim]*spanOfPath[dim]/2;
+        s->imageDimension[dim] = spanOfPath[dim];
     }
-    
+    s->minZ = rMin[Z];
+
     if(!STRETCH_TO_FIT_WINDOW)
     {//if we dont want to alter ratio then use the smallest scale for both.
         if( s->scale[X] < s->scale[Y] ) s->scale[Y] = s->scale[X];
@@ -150,32 +195,98 @@ scaler * getScaler(display * d, pointArray * path)
  This maps the points on to the display coordinates.
  returns a new, malloc'd, path. This and the old one should be free'd.
  */
-pointArray * scale(pointArray * path, scaler * s)
+pointArray * scalePath(pointArray * path2d, scaler * s)
 {
-    pointArray * scaledPath = malloc(sizeof(pointArray));
-    if(scaledPath==NULL)
+    pointArray * scaled2DPath = malloc(sizeof(pointArray));
+    if(scaled2DPath==NULL)
     {
         printError("pointArray * scaledPath = malloc(sizeof(pointArray)) failed exiting.",
                    __FILE__,__FUNCTION__,__LINE__);
         return NULL;
     }
-    scaledPath->numberOfPoints = path->numberOfPoints;
-    scaledPath->array = malloc(path->numberOfPoints*sizeof(point));
-    if(scaledPath->array==NULL)
+    scaled2DPath->numberOfPoints = path2d->numberOfPoints;
+    scaled2DPath->array = malloc(path2d->numberOfPoints*sizeof(point));
+    if(scaled2DPath->array==NULL)
     {
         printError("scaledPath->array = malloc(path->numberOfPoints*sizeof(point)) failed exiting.",
                    __FILE__,__FUNCTION__,__LINE__);
         return NULL;
     }
+    for(int point = 0; point < path2d->numberOfPoints; ++point)
+    {
+        for(dimension dim = X; dim<=Y; ++dim)
+        {
+            scaled2DPath->array[point].r[dim] = path2d->array[point].r[dim]*s->scale[dim] + s->offset[dim];
+        }
+        scaled2DPath->array[point].r[Z] = 0;
+    }
+    return scaled2DPath;
+}
+
+pointArray * renderPath(pointArray * path, scaler * s)
+{
+    pointArray * path2d = malloc(sizeof(pointArray));
+    if(path2d==NULL)
+    {
+        printError("pointArray * scaledPath = malloc(sizeof(pointArray)) failed exiting.",
+                   __FILE__,__FUNCTION__,__LINE__);
+        return NULL;
+    }
+    path2d->numberOfPoints = path->numberOfPoints;
+    path2d->array = malloc(path->numberOfPoints*sizeof(point));
+    if(path2d->array==NULL)
+    {
+        printError("scaledPath->array = malloc(path->numberOfPoints*sizeof(point)) failed exiting.",
+                   __FILE__,__FUNCTION__,__LINE__);
+        return NULL;
+    }
+    for(int point = 0; point<path2d->numberOfPoints; ++point)
+    {
+        path2d->array[point].r[X] = path->array[point].r[X] /
+                                    (path->array[point].r[Z] + VIEWING_DISTANCE*s->imageDimension[X]+s->minZ);
+        path2d->array[point].r[Y] = path->array[point].r[Y] /
+                                    (path->array[point].r[Z] + VIEWING_DISTANCE*s->imageDimension[Y]+s->minZ);
+        path2d->array[point].r[Z] = 0;
+    }
+    return path2d;
+}
+
+void rotatePath(pointArray * path, rotation rot, float angle)//angle in radians
+{
+    float rotationMatrix[3][3]={{0}};
+    if(rot==rotateAroundX)
+    {
+        rotationMatrix[0][0] = cos(angle);
+        rotationMatrix[0][2] = sin(angle);
+        rotationMatrix[2][0] = -sin(angle);
+        rotationMatrix[2][2] = cos(angle);
+        rotationMatrix[1][1] = 1;
+    }
+    if(rot==rotateAroundY)
+    {
+        rotationMatrix[0][0] = 1;
+        rotationMatrix[1][1] = cos(angle);
+        rotationMatrix[1][2] = sin(angle);
+        rotationMatrix[2][1] = -sin(angle);
+        rotationMatrix[2][2] = cos(angle);
+    }
+
     for(int point = 0; point<path->numberOfPoints; ++point)
     {
-        for(dimension dim = X; dim<=DIM_MAX; ++dim)
-        {
-            scaledPath->array[point].r[dim] = path->array[point].r[dim]*s->scale[dim] + s->offset[dim];
-        }
+        transformPoint(&path->array[point],rotationMatrix);
     }
-    return scaledPath;
 }
+
+void transformPoint( point * vector, float matrix[3][3] )
+{
+    for(dimension dim = X; dim<=Z; ++dim)
+    {
+        vector->r[dim] = matrix[dim][0]*vector->r[X] +
+                        matrix[dim][1]*vector->r[Y] +
+                        matrix[dim][2]*vector->r[Z];
+    }
+}
+
 /* if zoomin > 1 increases the scale by ZOOM_SENSITIVITY of the current scale
     else it is decreased by same
  */
@@ -189,7 +300,7 @@ void zoom(scaler * s, int zoomIn)
 }
 
 #pragma mark SDL functions
-void renderPath(display * d, pointArray * path)
+void drawPath(display * d, pointArray * path)
 {
     SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
     SDL_RenderClear(d->renderer);
@@ -215,8 +326,11 @@ sdlKey getSdlKeyPresses(display * d)
             int sym = d->event->key.keysym.sym;
             if (sym == SDLK_UP )         return UP;
             else if (sym == SDLK_DOWN )  return DOWN;
+            else if (sym == SDLK_LEFT )  return LEFT;
+            else if (sym == SDLK_RIGHT )  return RIGHT;
         }
-        checkSDLwinClosed(d);        
+        if(checkSDLwinClosed(d)) return NONE;
+        SDL_Delay(1e3/FPS);
     }
 }
 
@@ -313,7 +427,7 @@ void quitSDL(display * d)
     d->win = NULL;
     SDL_Quit();
 }
-
+#if 0
 #pragma mark Unit Test Functions
 void unitTests_draw()
 {
@@ -397,7 +511,6 @@ void testScalePath()
 }
 
 
-
-
+#endif
 
 

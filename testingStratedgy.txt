@@ -1,6 +1,8 @@
 Testing Strategy.
 ——————————————————
 
+Check basic addsymTo list, check sum b4 malloc	
+
 My program has a modular design around the 3 main functionalities:
 	
 	1. Parsing, reading the input file and checking it is valid.

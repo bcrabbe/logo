@@ -17,8 +17,14 @@
 #pragma mark prototypes
 //pathBuilder Functions:
 typedef struct turtle {
-    float direction;//angle with +ve x axis (in radians)
-    point position;//r=(x,y)
+    //these angles describe te direction the turtle faces:
+    float theta;//angle with +ve x axis (in radians)
+    float phi;//angle 0->pi with the +ve z axis (rad)
+    float tilt;//angle 0->2pi with +ve z axis (rad)
+    float forwardDirection[3];// this is a unit vector in the forward direction
+    float UpDownRotationAxis[3];//the unit vector perp to forward direction which U/DT rotate around.
+    float LeftRightRotationAxis[3];//the unit vector perp to forward direction which U/DT rotate around.
+    point position;//r=(x,y,z)
 } turtle;
 
 pointArray * buildPath( symbolList * symList);
@@ -57,7 +63,8 @@ pointArray * buildPath( symbolList * symList)
             moveTurtleFD( t, currentInstruction->value);
             sampleTurtle(path, t);
         }
-        else if(currentInstruction->sym==symRT || currentInstruction->sym==symLT)
+        else if(currentInstruction->sym==symRT || currentInstruction->sym==symLT ||
+                currentInstruction->sym==symUT || currentInstruction->sym==symDT )
         {
             rotateTurtle(t, currentInstruction->sym, currentInstruction->value);
         }
@@ -78,8 +85,10 @@ pointArray * buildPath( symbolList * symList)
  */
 void moveTurtleFD(turtle * t, float ammount)
 {
-    t->position.r[X] += ammount*cos(t->direction);
-    t->position.r[Y] += ammount*sin(t->direction);
+    for(dimension dim = X; dim<=Z; ++dim)
+    {
+        t->position.r[dim] += ammount*t->forwardDirection[dim];
+    }
 }
 
 /**
@@ -87,20 +96,42 @@ void moveTurtleFD(turtle * t, float ammount)
  if leftOrRight= symLT then decrease t->direction by ammount
  Values wrapped so 0 <=  t->direction <= 2pi
  */
-void rotateTurtle(turtle * t, symbol leftOrRight, float ammount)
+void rotateTurtle(turtle * t, symbol sym, float ammount)
 {
     float ammountInRadians = convertDegreesToRadians(ammount);
-    if(leftOrRight==symLT) ammountInRadians = -ammountInRadians;
-    
-    t->direction += ammountInRadians;
-    while (t->direction<0)
+    if(sym==symDT || sym==symLT) ammountInRadians = -ammountInRadians;
+
+    if( sym==symLT || sym==symRT )
     {
-        t->direction += 2*M_PI;
+        t->theta += ammountInRadians;
+        while (t->theta<0)
+        {
+            t->theta += 2*M_PI;
+        }
+        while (t->theta>2*M_PI)
+        {
+            t->theta -= 2*M_PI;
+        }
     }
-    while (t->direction>2*M_PI)
+    if( sym==symUT || sym==symDT )
     {
-        t->direction -= 2*M_PI;
+        t->tilt += ammountInRadians;
+        while (t->tilt<0)
+        {
+            t->tilt += 2*M_PI;
+        }
+        while (t->tilt>2*M_PI)
+        {
+            t->tilt -= 2*M_PI;
+        }
+        
+        t->phi = t->tilt>=M_PI ? -2*M_PI + t->tilt : t->tilt;
     }
+    t->forwardDirection[X] = sin(t->phi)*cos(t->theta);
+    t->forwardDirection[Y] = sin(t->phi)*sin(t->theta);
+    t->forwardDirection[Z] = cos(t->phi);
+    printf("t->phi = %f \n",t->phi);
+    printf("turtle direction: ( %f, %f, %f)\n", t->direction[X],  t->direction[Y],  t->direction[Z]);
 }
 
 /**
@@ -113,6 +144,8 @@ float convertDegreesToRadians(float degrees)
 
 /**
  Builds and returns a * to a fresh turtle struct.
+ Turtle starts facing along +ve x axis and we, looking down the +ve z axis
+ see the top of its shell.
  */
 turtle * startingPoint()
 {
@@ -122,7 +155,20 @@ turtle * startingPoint()
         printError("malloc failed exiting.",__FILE__,__FUNCTION__,__LINE__);
         exit(1);
     }
-    t->direction = 0;
+    t->theta = 0;
+    t->phi = M_PI_2;
+    t->tilt = M_PI_2;
+    t->forwardDirection[X]=sin(t->phi)*cos(t->theta);
+    t->forwardDirection[Y]=sin(t->phi)*sin(t->theta);
+    t->forwardDirection[Z]=cos(t->phi);
+    t->LeftRightRotationAxis[X]=0;
+    t->LeftRightRotationAxis[Y]=0;
+    t->LeftRightRotationAxis[Z]=-1;
+    t->UpDownRotationAxis[X]=0;
+    t->UpDownRotationAxis[Y]=-1;
+    t->UpDownRotationAxis[Z]=0;
+
+    
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
     {
         t->position.r[dim]=0;
@@ -204,7 +250,7 @@ void testStartingPoint()
 {
     turtle * t = startingPoint();
     
-    sput_fail_unless(t->direction==0,
+    sput_fail_unless(t->theta==0,
                      "Check all elements of the returned stuct are accessible and set correctly.");
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
     {
@@ -223,23 +269,23 @@ void testRotateTurtle()
     turtle * t = startingPoint();
     
     rotateTurtle(t,symLT, 90);
-    if(VERBOSE) printf("dirc = %f/pi\n",t->direction/M_PI);
-    sput_fail_unless(floatCompare(t->direction,3*M_PI_2)==1 ,
+    if(VERBOSE) printf("dirc = %f/pi\n",t->theta/M_PI);
+    sput_fail_unless(floatCompare(t->theta,3*M_PI_2)==1 ,
                      "rotating left pi/2 should set t->direction to 3*pi/2.");
-    t->direction=0;
+    t->theta=0;
     rotateTurtle(t,symRT, 90);
-    if(VERBOSE) printf("dirc = %f/pi\n",t->direction/M_PI);
-    sput_fail_unless(floatCompare(t->direction, M_PI_2)==1 ,
+    if(VERBOSE) printf("dirc = %f/pi\n",t->theta/M_PI);
+    sput_fail_unless(floatCompare(t->theta, M_PI_2)==1 ,
                      "rotating right pi/2 should set t->direction to pi/2.");
-    t->direction=0;
+    t->theta=0;
     rotateTurtle(t,symRT, 720+45);
-    if(VERBOSE) printf("dirc = %f/pi\n",t->direction/M_PI);
-    sput_fail_unless(floatCompare(t->direction, M_PI_4)==1 ,
+    if(VERBOSE) printf("dirc = %f/pi\n",t->theta/M_PI);
+    sput_fail_unless(floatCompare(t->theta, M_PI_4)==1 ,
                      "rotating right 4pi +pi/4 should set t->direction to pi/4.");
-    t->direction=0;
+    t->theta=0;
     rotateTurtle(t,symLT, 720+45);
-    if(VERBOSE) printf("dirc = %f/pi\n",t->direction/M_PI);
-    sput_fail_unless(floatCompare(t->direction, 2*M_PI - M_PI_4)==1 ,
+    if(VERBOSE) printf("dirc = %f/pi\n",t->theta/M_PI);
+    sput_fail_unless(floatCompare(t->theta, 2*M_PI - M_PI_4)==1 ,
                      "rotating left 4pi +pi/4 should set t->direction to pi/4.");
     free(t);
 }

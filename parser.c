@@ -41,6 +41,8 @@ int parseINSTRUCTION(parser * p);
 int parseFD(parser * p);
 int parseRT(parser * p);
 int parseLT(parser * p);
+int parseUT(parser * p);
+int parseDT(parser * p);
 int parseVARNUM(parser * p, float * result);
 char parseVAR(parser * p);
 int parseDO(parser * p);
@@ -181,7 +183,7 @@ int parseINSTRCTLST(parser * p)
 
 int parseINSTRUCTION(parser * p)
 {
-    if(parseFD(p))
+    if(parseUT(p))
     {
         return 1;
     }
@@ -190,6 +192,14 @@ int parseINSTRUCTION(parser * p)
         return 1;
     }
     else if(parseRT(p))
+    {
+        return 1;
+    }
+    if(parseFD(p))
+    {
+        return 1;
+    }
+    else if(parseDT(p))
     {
         return 1;
     }
@@ -283,6 +293,62 @@ int parseRT(parser * p)
         }
     }
 }
+/**
+ <UT>          ::= ""UT"" <VARNUM>
+ */
+int parseUT(parser * p)
+{
+    if(!stringsMatch(p->progArray[p->atToken], "UT")) return 0;
+    else
+    {
+        if(incrementAtToken(p)==0) return 0;
+        else
+        {
+            float value;
+            if(parseVARNUM(p,&value)==0)
+            {
+                addWhatDoWeExpectStringToErrorList(p, symUT);
+                syntaxError(p,"UT could not read VARNUM.");
+                return 0;
+            }
+            if(value==0)
+            {
+                syntaxError(p,"UT 0 is a redundant instruction.");
+                return 1;
+            }
+            return addSymToList(p, symUT, value);
+        }
+    }
+}
+/**
+ <DT>          ::= ""DT"" <VARNUM>
+ */
+
+int parseDT(parser * p)
+{
+    if(!stringsMatch(p->progArray[p->atToken], "DT")) return 0;
+    else
+    {
+        if(incrementAtToken(p)==0) return 0;
+        else
+        {
+            float value;
+            if(parseVARNUM(p,&value)==0)
+            {
+                addWhatDoWeExpectStringToErrorList(p, symDT);
+                syntaxError(p,"DT could not read VARNUM.");
+                return 0;
+            }
+            if(value==0)
+            {
+                syntaxError(p,"DT 0 is a redundant instruction.");
+                return 1;
+            }
+            return addSymToList(p, symDT, value);
+        }
+    }
+}
+
 
 int parseVARNUM(parser * p, float * result)
 {
@@ -405,9 +471,10 @@ int parseDO(parser * p)
         {
             p->varValues[(int)var]=iter;
             if(parseINSTRCTLST(p)==0) return 0;
-            p->atToken = loopStartToken;
+            p->atToken = iter!=toVarNum ? loopStartToken : p->atToken;
         }
-        return 1;
+        if(incrementAtToken(p)==0) return 0;
+        return parseINSTRCTLST(p);
     }
 }
 
@@ -574,7 +641,12 @@ int incrementAtToken(parser * p)
     if(p->atToken < p->numberOfTokens-1)
     {
         ++p->atToken;
-        //if(VERBOSE) printf("moved to token %d [%s]\n",p->atToken, p->progArray[p->atToken]);
+        if(VERBOSE) printf("moved to token %d [%s]\n",p->atToken, p->progArray[p->atToken]);
+        
+        if( p->atToken==13 || p->atToken==14)
+        {
+            printSymNode(p->symList->end);
+        }
         return 1;
     }
     else
@@ -621,12 +693,17 @@ float getVarValue(parser *p, char var)
 #pragma mark symbol list functions
 /**
  Creates a symbolNode for the input values and ands it to p->symList linked list
- symList only needs to contain FD LT and RT instructions, all others can be expanded to these.
+ symList only needs to contain FD LT RT DT and IT instructions, all others can be expanded to these.
  if this function is called with a sym other than these, it prints an error and returns 0.
  otherwise it returns the new length of the list
  */
 int addSymToList(parser * p, symbol sym, float value)
 {
+    if(sym!=symFD && sym!=symLT && sym!=symRT && sym!=symUT && sym!=symDT)
+    {
+        printError("addSymToList called a sym type that doesnt need to be placed on symList.", __FILE__, __FUNCTION__, __LINE__);
+        return 0;
+    }
     symbolNode * newNode = malloc(sizeof(symbolNode));
     if(newNode==NULL)
     {
@@ -636,11 +713,7 @@ int addSymToList(parser * p, symbol sym, float value)
     newNode->sym = sym;
     newNode->value = value;
     newNode->next = NULL;
-    if(sym!=symFD && sym!=symLT && sym!=symRT)
-    {
-        printError("addSymToList called a sym type that doesnt need to be placed on symList.", __FILE__, __FUNCTION__, __LINE__);
-        return 0;
-    }
+ 
     if(p->symList->length==0)
     {//if first node:
         p->symList->start = newNode;
@@ -694,9 +767,19 @@ int printSymNode(symbolNode * node)
             printf("    LT   ");
             break;
         }
+        case symUT:
+        {
+            printf("    UT   ");
+            break;
+        }
+        case symDT:
+        {
+            printf("    DT   ");
+            break;
+        }
         default:
         {
-            printError("symList contained a unexpected symbol. Only FD, RT, and LT instructions are neccessary to be added to symList, others can be expanded to just these.", __FILE__, __FUNCTION__, __LINE__);
+            printError("symList contained a unexpected symbol. Only FD, RT, LT, UT and DT instructions are neccessary to be added to symList, others can be expanded to just these.", __FILE__, __FUNCTION__, __LINE__);
             return 0;
         }
     }
@@ -878,6 +961,12 @@ int addWhatDoWeExpectStringToErrorList(parser * p, symbol context)
             break;
         case symRT:
             sprintf(outputString, "Expected: <RT>          ::= ""RT"" <VARNUM>");
+            break;
+        case symUT:
+            sprintf(outputString, "Expected: <UT>          ::= ""UT"" <VARNUM>");
+            break;
+        case symDT:
+            sprintf(outputString, "Expected: <DT>          ::= ""DT"" <VARNUM>");
             break;
         case symDO:
             sprintf(outputString, "Expected: <DO>          ::= ""DO"" <VAR> ""FROM"" <VARNUM> ""TO"" <VARNUM> ""{"" <INSTRCTLST>");
