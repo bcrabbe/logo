@@ -33,6 +33,9 @@ typedef struct scaler {
     float offset[2];//px
     float imageDimension[3];
     float minZ;//the minumum Z value
+    float centreOfPath[NUMBER_OF_DIMENSIONS];
+    float centreOfWindow[NUMBER_OF_DIMENSIONS];
+    float spanOfPath[NUMBER_OF_DIMENSIONS];
 } scaler;
 
 typedef enum rotate {
@@ -84,25 +87,25 @@ void draw(pointArray * path)
         drawPath(d, scaled2dPath);
         checkSDLwinClosed(d);
         key = getSdlKeyPresses(d);
-        if(key!=NONE && !d->finished)
-        {   //rotates original path:
-            if(key==UP) rotatePath(path, rotateAroundY, +ROTATION_SENSITIVITY );
-            if(key==DOWN) rotatePath(path, rotateAroundY, -ROTATION_SENSITIVITY);
-            if(key==LEFT) rotatePath(path, rotateAroundX, -ROTATION_SENSITIVITY );
-            if(key==RIGHT) rotatePath(path, rotateAroundX, ROTATION_SENSITIVITY);
-            if(ADJUST_ZOOM_TO_FIT_ROTATED_OBJECT)
-            {
-                free(s);//free old scaler
-                s = getScaler(d, path);
-            }
-            if(VERBOSE) printPath(path,Z,"Rotated 3dPath :");
-            path2d = renderPath(path, s);
-            if(VERBOSE) printPath(path2d,Y,"Rotated 2dPath");
+        if(key==NONE ) break;
+        //rotates original path:
+        if(key==UP) rotatePath(path, rotateAroundY, ROTATION_SENSITIVITY );
+        if(key==DOWN) rotatePath(path, rotateAroundY, -ROTATION_SENSITIVITY);
+        if(key==LEFT) rotatePath(path, rotateAroundX, -ROTATION_SENSITIVITY );
+        if(key==RIGHT) rotatePath(path, rotateAroundX, ROTATION_SENSITIVITY);
+        if(ADJUST_ZOOM_TO_FIT_ROTATED_OBJECT)
+        {
             free(s);//free old scaler
-            s = getScaler(d, path2d);
-            scaled2dPath = scalePath(path2d, s);
-            if(VERBOSE) printPath(scaled2dPath, Y, "Rotated and scaled 2dPath :");
+            s = getScaler(d, path);
         }
+        if(VERBOSE) printPath(path,Z,"Rotated 3dPath :");
+        path2d = renderPath(path, s);
+        if(VERBOSE) printPath(path2d,Y,"Rotated 2dPath");
+        free(s);//free old scaler
+        s = getScaler(d, path2d);
+        scaled2dPath = scalePath(path2d, s);
+        if(VERBOSE) printPath(scaled2dPath, Y, "Rotated and scaled 2dPath :");
+
     }
     free(s);//free scaler
     freePath(path);//free unscaled path
@@ -154,20 +157,17 @@ scaler * getScaler(display * d, pointArray * path)
             }
         }
     }
-    float spanOfPath[3] = { rMax[X]-rMin[X],
-                            rMax[Y]-rMin[Y],
-                            rMax[Z]-rMin[Z] };
-    float centreOfPath[2] = {   (rMax[X]-rMin[X])/2,
-                                (rMax[Y]-rMin[Y])/2 };
-    float centreOfWindow[2] = { (float)d->winSize[X]/2,
-                                (float)d->winSize[Y]/2 };
     for(dimension dim = X; dim<=Y; ++dim)
     {
-        s->scale[dim] = 0.8*( (float)d->winSize[dim]  / spanOfPath[dim]);
-        s->offset[dim] =  -s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim] + s->scale[dim]*spanOfPath[dim]/2;
-        s->imageDimension[dim] = spanOfPath[dim];
+        s->spanOfPath[dim] = rMax[dim]-rMin[dim];
+        s->centreOfPath[dim] = (rMax[dim]-rMin[dim])/2;
+        s->centreOfWindow[dim] = (float)d->winSize[dim]/2;
+        s->scale[dim] = 0.8*( (float)d->winSize[dim]  / s->spanOfPath[dim]);
+        s->offset[dim] =  -s->scale[dim]*s->centreOfPath[dim] + s->centreOfWindow[dim] + s->scale[dim]*s->spanOfPath[dim]/2;
+        s->imageDimension[dim] = s->spanOfPath[dim];
     }
     s->minZ = rMin[Z];
+
 
     if(!STRETCH_TO_FIT_WINDOW)
     {//if we dont want to alter ratio then use the smallest scale for both.
@@ -177,7 +177,7 @@ scaler * getScaler(display * d, pointArray * path)
     if(VERBOSE)
     {
         printf("scale: %f,%f\n", s->scale[X], s->scale[Y]);
-        printf("offset: %f,%f\n", s->offset[X], s->offset[Y]);
+        // printf("offset: %f,%f\n", s->offset[X], s->offset[Y]);
     }
     return s;
 }
@@ -208,6 +208,9 @@ pointArray * scalePath(pointArray * path2d, scaler * s)
         for(dimension dim = X; dim<=Y; ++dim)
         {
             scaled2DPath->array[point].r[dim] = path2d->array[point].r[dim]*s->scale[dim] + s->offset[dim];
+//            scaledPath->array[point].r[dim] -=  s->centreOfPath[dim];
+//            scaledPath->array[point].r[dim] *= s->scale[dim];
+//            scaledPath->array[point].r[dim] += s->centreOfWindow[dim];
         }
         scaled2DPath->array[point].r[Z] = 0;
     }
@@ -280,6 +283,9 @@ void transformPoint( point * vector, float matrix[3][3] )
 
 
 #pragma mark SDL functions
+
+/* conect the points in the path with lines in SDL window
+ */
 void drawPath(display * d, pointArray * path)
 {
     SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
@@ -313,7 +319,21 @@ sdlKey getSdlKeyPresses(display * d)
         SDL_Delay(1e3/FPS);
     }
 }
-
+/*  Call frequently to see if the wind has been closed
+ then check d->finished to see if this is the case
+ */
+int checkSDLwinClosed(display *d)
+{
+    if(SDL_PollEvent(d->event))
+    {
+        if( d->event->type == SDL_QUIT )
+        {
+            d->finished = 1;
+            return 1;
+        }
+    }
+    return 0;
+}
 display * startSDL()
 {
     display * d = malloc(sizeof(display));
@@ -380,21 +400,7 @@ display * startSDL()
     return d;
 }
 
-/*  Call frequently to see if the wind has been closed
- then check d->finished to see if this is the case
- */
-int checkSDLwinClosed(display *d)
-{
-    if(SDL_PollEvent(d->event))
-    {
-        if( d->event->type == SDL_QUIT )
-        {
-            d->finished = 1;
-            return 1;
-        }
-    }
-    return 0;
-}
+
 
 /* call if window is closed
  */
@@ -471,6 +477,9 @@ void testGetScaler()
                      "the x offset should be set to this value.");
     sput_fail_unless(floatCompare(s->offset[Y],(float)d->winSize[Y]/2-s->scale[Y]*10),
                      "the y offset should be set to this value.");
+    free(s);
+    freePath(path);
+    quitSDL(d);
 }
 
 void testScalePath()
@@ -488,6 +497,14 @@ void testScalePath()
             "Each coordinate of the scaled path should be within the window dimensions");
         }
     }
+    renderPath(d,scaledPath);
+    while(!d->finished)
+    {
+        checkSDLwinClosed(d);
+    }
+    free(s);
+    freePath(path);
+    quitSDL(d);
 }
 
 
