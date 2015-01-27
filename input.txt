@@ -1,15 +1,4 @@
-
-{
-   DO A FROM 1 TO 800 {
-      SET C := A 0.00000000001 * ;
-      FD C
-      RT 213
-	SET D := A 0.00000000015 * ;
-	FD D
-	RT 13
-	SET E := C D + ;
-	SET F := C D - ;
-	SET G := E F / ;
-	LT G
-} 
-}
+{   DO A FROM 1 TO 5000 {      FD A      RT 217
+	FD 20      DO B FROM 1 TO 8 {         SET C := A 5 / ;         FD B         RT 41} 
+	FD A
+}}

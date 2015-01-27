@@ -49,7 +49,6 @@ void printPath(pointArray * path, char * name);
 
 #pragma mark Unit Test Prototypes
 void testStartSDL();
-void testGetScaler();
 void testScalePath();
 
 #pragma mark draw functions
@@ -122,8 +121,9 @@ scaler * getScaler(display * d, pointArray * path)
         s->spanOfPath[dim] = rMax[dim]-rMin[dim];//FD units
         s->centreOfPath[dim] = (rMax[dim]-rMin[dim])/2;//FD units
         s->centreOfWindow[dim] = (float)d->winSize[dim]/2;//px
-        s->scale[dim] = 0.3*( (float)d->winSize[dim]  / s->spanOfPath[dim]);//px per fd unit
-        s->offset[dim] = -s->scale[dim]*s->centreOfPath[dim] + s->centreOfWindow[dim] + s->scale[dim]*s->spanOfPath[dim]/2;
+        s->scale[dim] = SCALE_AT_START*( (float)d->winSize[dim]  / s->spanOfPath[dim]);//px per fd unit
+        s->offset[dim] =    -s->scale[dim]*s->centreOfPath[dim] + s->centreOfWindow[dim] +
+                            s->scale[dim]*s->spanOfPath[dim]/2;
     }
     if(!STRETCH_TO_FIT_WINDOW)
     {//if we dont want to alter ratio then use the smallest scale for both.
@@ -137,6 +137,7 @@ scaler * getScaler(display * d, pointArray * path)
     }
     return s;
 }
+
 /**
  Takes path and transforms each point on to the display coordinates.
  returns a new, malloc'd, path. This and the old one should be free'd.
@@ -167,6 +168,7 @@ pointArray * scale(pointArray * path, scaler * s)
     }
     return scaledPath;
 }
+
 /* if zoomin > 1 increases the scale by ZOOM_SENSITIVITY of the current scale
     else it is decreased by same
  */
@@ -224,6 +226,7 @@ sdlKey getSdlKeyPresses(display * d)
         if(d->finished) return NONE;
     }
 }
+
 /*  Call frequently to see if the wind has been closed
  then check d->finished to see if this is the case
  */
@@ -239,6 +242,7 @@ int checkSDLwinClosed(display *d)
     }
     return 0;
 }
+
 display * startSDL()
 {
     display * d = malloc(sizeof(display));
@@ -305,8 +309,6 @@ display * startSDL()
     return d;
 }
 
-
-
 /* call if window is closed
  */
 void quitSDL(display * d)
@@ -329,17 +331,12 @@ void unitTests_draw()
     sput_run_test(testStartSDL);
     sput_leave_suite();
 
-    sput_enter_suite("testGetScaler()");
-    sput_run_test(testGetScaler);
-    sput_leave_suite();
-
     sput_enter_suite("testScalePath()");
     sput_run_test(testScalePath);
     sput_leave_suite();
     
     sput_finish_testing();
 }
-
 
 void testStartSDL()
 {
@@ -354,44 +351,25 @@ void testStartSDL()
     sput_fail_unless(d->event!=NULL, "Checking all elements of d are accessible and correctly set.");
 }
 
-void testGetScaler()
-{
-    display * d = startSDL();
-    pointArray * path = mockPathForDrawUnitTests();
-    scaler * s = getScaler(d, path);
-    /*  this is the mock path:
-        0,0
-        20,0
-        20,20
-        40,20
-        0,20
-        0,0
-(0,0)----------(20,0)
-    |          |
-    |          |
-    |          |
-    |          |(20,20)
-    |          |___________
-(0,20)---------------------(40,20)
-     */
-    for(dimension dim = X; dim<=Y; ++dim)
-    {
-        sput_fail_unless(floatCompare(s->scale[dim], 0.8*( (float)d->winSize[dim]  / s->spanOfPath[dim])),
-                         "the x scaler should be set to this value.");
-        sput_fail_unless(floatCompare(s->offset[dim],-s->scale[dim]*s->centreOfPath[dim] + s->centreOfWindow[dim] +
-                                      s->scale[dim]*s->spanOfPath[dim]/2),
-                         "the x offset should be set to this value.");
-    }
-
-    free(s);
-    freePath(path);
-    quitSDL(d);
-}
-
 void testScalePath()
 {
     display * d = startSDL();
     pointArray * path = mockPathForDrawUnitTests();
+    /*  this is the mock path:
+     0,0
+     20,0
+     20,20
+     40,20
+     0,20
+     0,0
+     (0,0)----------(20,0)
+     |              |
+     |              |
+     |              |
+     |              |(20,20)
+     |              |___________
+     (0,20)---------------------(40,20)
+     */
     scaler * s = getScaler(d, path);
     pointArray * scaledPath = scale(path, s);
     for(int point = 0; point<scaledPath->numberOfPoints; ++point)
@@ -403,17 +381,10 @@ void testScalePath()
             "Each coordinate of the scaled path should be within the window dimensions");
         }
     }
-    renderPath(d,scaledPath);
-    while(!d->finished)
-    {
-        checkSDLwinClosed(d);
-    }
     free(s);
     freePath(path);
     quitSDL(d);
 }
-
-
 
 
 

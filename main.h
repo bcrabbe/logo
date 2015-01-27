@@ -13,7 +13,7 @@
 /******************************************************************************/
 //Options:
 #define TESTING 0//runs the test if set
-#define VERBOSE 1//prints info to terminal disable for speed.
+#define VERBOSE 0//prints info to terminal disable for speed.
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
 #define MAX_ERROR_STRING_SIZE 600
 
@@ -21,7 +21,8 @@
 #define SDL_WINDOW_WIDTH 900
 #define SDL_WINDOW_HEIGHT 660
 #define STRETCH_TO_FIT_WINDOW 1
-#define ZOOM_SENSITIVITY 0.1 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
+#define ZOOM_SENSITIVITY 0.7 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
+#define SCALE_AT_START 0.3 //of screen width
 
 #ifndef M_PI
 #define M_PI 3.14159265359
