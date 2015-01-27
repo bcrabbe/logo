@@ -1318,7 +1318,7 @@ void testSymListFunctions()
     sput_fail_unless(addSymToList(p, symFD, value)==3, "should be able to add symFD to list");
     for(symbol sym = symMAIN; sym<=symOP ; ++sym)
     {
-        if(sym==symFD || sym==symLT || sym==symRT)
+        if(sym==symFD || sym==symLT || sym==symRT || sym==symUT || sym==symDT )
         {
             //doNothing
         }
