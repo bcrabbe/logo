@@ -2,6 +2,8 @@ Testing Strategy.
 ——————————————————
 
 Check basic addsymTo list, check sum b4 malloc	
+add MPI refs 
+//pragmas 
 
 My program has a modular design around the 3 main functionalities:
 	

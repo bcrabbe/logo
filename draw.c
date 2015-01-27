@@ -53,7 +53,7 @@ display * startSDL();
 int checkSDLwinClosed(display *d);
 void quitSDL(display * d);
 
-void printPath(pointArray * path, dimension maxDim);
+void printPath(pointArray * path, dimension maxDim, char * name);
 
 #pragma mark Unit Test Prototypes
 void testStartSDL();
@@ -66,22 +66,17 @@ void testScalePath();
  */
 void draw(pointArray * path)
 {
-    printf("\n\noriginal path :\n");
-    if(VERBOSE) printPath(path,Z);
-
+    if(VERBOSE) printPath(path,Z,"original path :");
     display * d = startSDL();
-    
-    scaler * s = getScaler(d, path);
-    pointArray * path2d = renderPath(path, s);
-    printf("\n\n\nrendered path :\n");
-    if(VERBOSE) printPath(path2d,Y);
+    scaler * s = getScaler(d, path);//size information on path, needed for rendering
+    pointArray * path2d = renderPath(path, s);//makes 2d path from view
+    if(VERBOSE) printPath(path2d,Y,"Rendered Path :");
     free(s);//free old scaler
-    s = getScaler(d, path2d);
-    pointArray * scaled2dPath = scalePath(path2d, s);
-    printf("\n\nScaled2dPath :\n");
-    if(VERBOSE) printPath(scaled2dPath,Y);
-
-    freePath(path2d);
+    s = getScaler(d, path2d);//2nd path has new dimensions
+    pointArray * scaled2dPath = scalePath(path2d, s);//scale it to window size
+    if(VERBOSE) printPath(scaled2dPath,Y,"Scaled2dPath :");
+    freePath(path2d);//dont need unscaled 2d path anymore
+    
     printf("Press arrows to rotate.\n");
     sdlKey key = NONE;
     while(!d->finished)
@@ -90,7 +85,7 @@ void draw(pointArray * path)
         checkSDLwinClosed(d);
         key = getSdlKeyPresses(d);
         if(key!=NONE && !d->finished)
-        {
+        {   //rotates original path:
             if(key==UP) rotatePath(path, rotateAroundY, +ROTATION_SENSITIVITY );
             if(key==DOWN) rotatePath(path, rotateAroundY, -ROTATION_SENSITIVITY);
             if(key==LEFT) rotatePath(path, rotateAroundX, -ROTATION_SENSITIVITY );
@@ -100,18 +95,13 @@ void draw(pointArray * path)
                 free(s);//free old scaler
                 s = getScaler(d, path);
             }
-            printf("\n\nRotated 3dPath :\n");
-            if(VERBOSE) printPath(path,Z);
-            
+            if(VERBOSE) printPath(path,Z,"Rotated 3dPath :");
             path2d = renderPath(path, s);
-            printf("\n\nRotated 2dPath :\n");
-            if(VERBOSE) printPath(path2d,Y);
-            
+            if(VERBOSE) printPath(path2d,Y,"Rotated 2dPath");
             free(s);//free old scaler
             s = getScaler(d, path2d);
             scaled2dPath = scalePath(path2d, s);
-            printf("\n\nRotated and scaled 2dPath :\n");
-            if(VERBOSE) printPath(scaled2dPath, Y);
+            if(VERBOSE) printPath(scaled2dPath, Y, "Rotated and scaled 2dPath :");
         }
     }
     free(s);//free scaler
@@ -120,13 +110,14 @@ void draw(pointArray * path)
     quitSDL(d);
 }
 
-void printPath(pointArray * path, dimension maxDim)
+void printPath(pointArray * path, dimension maxDim, char * name)
 {
+    char nameString[MAX_ERROR_STRING_SIZE] = "\n\nPrinting ";
+    sprintf(nameString, "\n\nShowing %s .\n\n",name);
     for(int p=0; p<path->numberOfPoints; ++p)
     {
        if(maxDim==Y) printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
        else if(maxDim==Z) printf("( %f, %f, %f)\n",path->array[p].r[X], path->array[p].r[Y], path->array[p].r[Z]);
-
     }
 }
 
@@ -287,17 +278,6 @@ void transformPoint( point * vector, float matrix[3][3] )
     }
 }
 
-/* if zoomin > 1 increases the scale by ZOOM_SENSITIVITY of the current scale
-    else it is decreased by same
- */
-void zoom(scaler * s, int zoomIn)
-{
-    for(dimension dim = X; dim<=DIM_MAX; ++dim)
-    {
-        if(zoomIn) s->scale[dim] +=  s->scale[dim]*ZOOM_SENSITIVITY;
-        else  s->scale[dim] -=  s->scale[dim]*ZOOM_SENSITIVITY;
-    }
-}
 
 #pragma mark SDL functions
 void drawPath(display * d, pointArray * path)

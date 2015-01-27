@@ -92,15 +92,13 @@ void moveTurtleFD(turtle * t, float ammount)
 }
 
 /**
- if leftOrRight= symRT then increase t->direction by ammount
- if leftOrRight= symLT then decrease t->direction by ammount
- Values wrapped so 0 <=  t->direction <= 2pi
+ Rotates a turtle by the type and ammount specified.
  */
 void rotateTurtle(turtle * t, symbol sym, float ammount)
 {
     float ammountInRadians = convertDegreesToRadians(ammount);
     if(sym==symDT || sym==symLT) ammountInRadians = -ammountInRadians;
-
+    
     if( sym==symLT || sym==symRT )
     {
         t->theta += ammountInRadians;
@@ -115,23 +113,21 @@ void rotateTurtle(turtle * t, symbol sym, float ammount)
     }
     if( sym==symUT || sym==symDT )
     {
-        t->tilt += ammountInRadians;
-        while (t->tilt<0)
+        t->phi += ammountInRadians;
+        while (t->phi<0)
         {
-            t->tilt += 2*M_PI;
+            t->phi += 2*M_PI;
         }
-        while (t->tilt>2*M_PI)
+        while (t->phi>2*M_PI)
         {
-            t->tilt -= 2*M_PI;
+            t->phi -= 2*M_PI;
         }
-        
-        t->phi = t->tilt>=M_PI ? -2*M_PI + t->tilt : t->tilt;
     }
+    if(VERBOSE) printf("turtle angles: theta = %f, phi = %f)\n", t->theta, t->phi);
+
     t->forwardDirection[X] = sin(t->phi)*cos(t->theta);
     t->forwardDirection[Y] = sin(t->phi)*sin(t->theta);
     t->forwardDirection[Z] = cos(t->phi);
-    printf("t->phi = %f \n",t->phi);
-    printf("turtle direction: ( %f, %f, %f)\n", t->direction[X],  t->direction[Y],  t->direction[Z]);
 }
 
 /**
@@ -157,18 +153,9 @@ turtle * startingPoint()
     }
     t->theta = 0;
     t->phi = M_PI_2;
-    t->tilt = M_PI_2;
     t->forwardDirection[X]=sin(t->phi)*cos(t->theta);
     t->forwardDirection[Y]=sin(t->phi)*sin(t->theta);
     t->forwardDirection[Z]=cos(t->phi);
-    t->LeftRightRotationAxis[X]=0;
-    t->LeftRightRotationAxis[Y]=0;
-    t->LeftRightRotationAxis[Z]=-1;
-    t->UpDownRotationAxis[X]=0;
-    t->UpDownRotationAxis[Y]=-1;
-    t->UpDownRotationAxis[Z]=0;
-
-    
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
     {
         t->position.r[dim]=0;

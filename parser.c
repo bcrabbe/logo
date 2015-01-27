@@ -642,11 +642,6 @@ int incrementAtToken(parser * p)
     {
         ++p->atToken;
         if(VERBOSE) printf("moved to token %d [%s]\n",p->atToken, p->progArray[p->atToken]);
-        
-        if( p->atToken==13 || p->atToken==14)
-        {
-            printSymNode(p->symList->end);
-        }
         return 1;
     }
     else
