@@ -136,8 +136,9 @@ symbolList * parse(char * inputString)
         freeParser(p);
         return NULL;
     }
+    symbolList * symList = p->symList;
     freeParser(p);
-    return p->symList;
+    return symList;
 }
 
 #pragma mark symbol parsers
@@ -560,6 +561,7 @@ void freeParser(parser * p)
     free(p->errorList);
     free(p->polishCalcStack->array);
     free(p->polishCalcStack);
+    free(p);
     //do not want to free symlist as this is returned.
 }
 

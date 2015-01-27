@@ -11,7 +11,7 @@
 #include "sput.h"
 #include "debug.h"
 
-#define TESTING 1
+#define TESTING 0
 #define VERBOSE 1
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
 #define MAX_ERROR_STRING_SIZE 600

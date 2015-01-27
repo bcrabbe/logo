@@ -1,0 +1,50 @@
+Testing Strategy.
+——————————————————
+
+My program has a modular design around the 3 main functionalities:
+	
+	1. Parsing, reading the input file and checking it is valid.
+	2. Building a path from those instructions.
+	3. Drawing that path in an SDL window.
+
+
+I have written a set of unit test for each module, each of those contains a number of suites addressing every non trivial function in each module. These tests generally aim for maximum code coverage. They can be considered white box tests as they are run from with the module and have access to the data. 
+
+I have also written some black box tests checking that each of the modules performs its function.  
+
+To organise these tests I have used the harness sput. 
+	
+	http://www.lingua-systems.com/unit-testing/tutorial.html
+	https://github.com/Yawning/liballium/blob/master/tests/sput.h
+
+ 
+The unit tests for each module are grouped under headings, each contains a number number of suites. The sput output:
+
+********************************************************************
+
+*                       Testing draw.c                             *
+
+********************************************************************
+
+
+== Entering suite #1, "testStartSDL()" ==
+
+[1:1]  testStartSDL:#1  "Checking all elements of d are accessible and correctly set."  pass
+[1:2]  testStartSDL:#2  "Checking all elements of d are accessible and correctly set."  pass
+[1:3]  testStartSDL:#3  "Checking all elements of d are accessible and correctly set."  pass
+[1:4]  testStartSDL:#4  "Checking all elements of d are accessible and correctly set."  pass
+[1:5]  testStartSDL:#5  "Checking all elements of d are accessible and correctly set."  pass
+[1:6]  testStartSDL:#6  "Checking all elements of d are accessible and correctly set."  pass
+[1:7]  testStartSDL:#7  "Checking all elements of d are accessible and correctly set."  pass
+
+--> 7 check(s), 7 ok, 0 failed (0.00%)
+
+
+	
+each test is is has a description of what its doing and whether it passed or not.
+At the end of the module’s tests you see wether there was any failures:
+
+==> 23 check(s) in 3 suite(s) finished after 2.00 second(s),
+    23 succeeded, 0 failed (0.00%)
+
+[SUCCESS]

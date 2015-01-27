@@ -40,6 +40,9 @@ void testGetScaler();
 void testScalePath();
 
 #pragma mark draw functions
+/**
+ Draws lines between each of the points in path to an sdl window
+ */
 void draw(pointArray * path)
 {
     display * d = startSDL();
@@ -59,6 +62,7 @@ void draw(pointArray * path)
     SDL_RenderPresent(d->renderer);
     while(!d->finished)
     {
+        getMouse
         checkSDLwinClosed(d);
     }
     free(s);//free scaler
@@ -102,7 +106,7 @@ scaler * getScaler(display * d, pointArray * path)
                             rMax[Y]-rMin[Y] };
     
     float centreOfPath[2] = {   (rMax[X]-rMin[X])/2,
-                                (rMax[Y]-rMin[Y])/2     };
+                                (rMax[Y]-rMin[Y])/2 };
 
     float centreOfWindow[2] = { (float)d->winSize[X]/2,
                                 (float)d->winSize[Y]/2 };
@@ -330,7 +334,6 @@ void testScalePath()
             sput_fail_unless( scaledPath->array[point].r[dim] <= d->winSize[dim] &&
                               scaledPath->array[point].r[dim] >= 0,
             "Each coordinate of the scaled path should be within the window dimensions");
-
         }
     }
 }

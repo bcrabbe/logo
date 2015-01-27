@@ -43,6 +43,8 @@ int main(int argc, const char * argv[])
     pointArray * path = buildPath(symList);
     if(path==NULL) return 0;
     
+    
+    
     draw(path);
     
     return 1;
