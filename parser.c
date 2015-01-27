@@ -142,7 +142,9 @@ symbolList * parse(char * inputString)
     freeParser(p);
     return symList;
 }
-
+/**
+*<MAIN>        ::= ""{"" <INSTRCTLST>
+*/
 #pragma mark symbol parsers
 int parseMAIN(parser * p)
 {
@@ -163,7 +165,9 @@ int parseMAIN(parser * p)
         return 0;
     }
 }
-
+/**
+* <INSTRCTLST>  ::= <INSTRUCTION><INSTRCTLST> | ""}"" 
+*/
 int parseINSTRCTLST(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "}"))
@@ -180,7 +184,9 @@ int parseINSTRCTLST(parser * p)
         return 0;
     }
 }
-
+/**
+<INSTRUCTION> ::= <FD> | <LT> | <RT> | <DO> | <SET>
+ */
 int parseINSTRUCTION(parser * p)
 {
     if(parseUT(p))
@@ -217,7 +223,9 @@ int parseINSTRUCTION(parser * p)
         return 0;
     }
 }
-
+/**
+ *<FD>          ::= ""FD"" <VARNUM>
+ */
 int parseFD(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "FD"))
@@ -242,7 +250,9 @@ int parseFD(parser * p)
     }
     return 0;
 }
-
+/**
+ *<LT>          ::= ""LT"" <VARNUM>
+ */
 int parseLT(parser * p)
 {
     if(stringsMatch(p->progArray[p->atToken], "LT"))
@@ -268,8 +278,10 @@ int parseLT(parser * p)
     }
     else return 0;
 }
-
-int parseRT(parser * p)
+/**
+ *<RT>          ::= ""RT"" <VARNUM>
+ */
+ int parseRT(parser * p)
 {
     if(!stringsMatch(p->progArray[p->atToken], "RT")) return 0;
     else
@@ -349,7 +361,9 @@ int parseDT(parser * p)
     }
 }
 
-
+/*
+ * <VARNUM>      ::= number | <VAR>
+ */
 int parseVARNUM(parser * p, float * result)
 {
     float value;
@@ -382,6 +396,8 @@ int parseVARNUM(parser * p, float * result)
 /**
  Reads the token p->progArray[p->atToken], if it is a valid VAR i.e. a char 'A'-'Z' 
  then that charecter is return, other wise 0 is.
+ 
+ <VAR>         ::= [A-Z]
  */
 char parseVAR(parser * p)
 {
@@ -515,7 +531,6 @@ int parseSET(parser * p)
     }
 }
 
-
 /*
  * <POLISH> ::= <OP> <POLISH> | <VARNUM> <POLISH> | ";"
  */
@@ -555,7 +570,7 @@ int parsePOLISH(parser * p, float * result)
 }
 
 /*
- * <SET> ::= "SET" <VAR> ":=" <POLISH>
+ <OP>          ::= ""+"" | ""-"" | ""*"" | ""/"" 
  */
 int parseOP(parser * p, operator * op)
 {

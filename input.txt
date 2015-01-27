@@ -1,14 +1,13 @@
-{	DO B FROM 1 TO 400 {
-		FD 10
-		RT 110
-        }
-	UT 90
-	FD 40
-	DT 90
-	  DO B FROM 1 TO 400 {
-                FD 10
-                RT 110
-        }
-	
-}
+{
+	DO A FROM 1 TO 100 {
+		UT 19
+		FD 2
+		RT 139
+		DT 19
+		LT 284
+		FD 2
+		
+	}
+
+} 
 
