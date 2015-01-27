@@ -113,16 +113,7 @@ void draw(pointArray * path)
     quitSDL(d);
 }
 
-void printPath(pointArray * path, dimension maxDim, char * name)
-{
-    char nameString[MAX_ERROR_STRING_SIZE] = "\n\nPrinting ";
-    sprintf(nameString, "\n\nShowing %s .\n\n",name);
-    for(int p=0; p<path->numberOfPoints; ++p)
-    {
-       if(maxDim==Y) printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
-       else if(maxDim==Z) printf("( %f, %f, %f)\n",path->array[p].r[X], path->array[p].r[Y], path->array[p].r[Z]);
-    }
-}
+
 
 
 #pragma Scaling functions
@@ -208,9 +199,6 @@ pointArray * scalePath(pointArray * path2d, scaler * s)
         for(dimension dim = X; dim<=Y; ++dim)
         {
             scaled2DPath->array[point].r[dim] = path2d->array[point].r[dim]*s->scale[dim] + s->offset[dim];
-//            scaledPath->array[point].r[dim] -=  s->centreOfPath[dim];
-//            scaledPath->array[point].r[dim] *= s->scale[dim];
-//            scaledPath->array[point].r[dim] += s->centreOfWindow[dim];
         }
         scaled2DPath->array[point].r[Z] = 0;
     }
@@ -281,6 +269,16 @@ void transformPoint( point * vector, float matrix[3][3] )
     }
 }
 
+void printPath(pointArray * path, dimension maxDim, char * name)
+{
+    char nameString[MAX_ERROR_STRING_SIZE] = "\n\nPrinting ";
+    sprintf(nameString, "\n\nShowing %s .\n\n",name);
+    for(int p=0; p<path->numberOfPoints; ++p)
+    {
+        if(maxDim==Y) printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
+        else if(maxDim==Z) printf("( %f, %f, %f)\n",path->array[p].r[X], path->array[p].r[Y], path->array[p].r[Z]);
+    }
+}
 
 #pragma mark SDL functions
 
