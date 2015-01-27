@@ -20,6 +20,12 @@ typedef struct display
     
 } display;
 
+typedef enum sdlKey {
+    UP = 1,
+    DOWN = -1,
+    NONE = 0
+} sdlKey;
+
 typedef struct scaler {
     float scale[NUMBER_OF_DIMENSIONS];//pixcels per unit distance
     float offset[NUMBER_OF_DIMENSIONS];
@@ -28,11 +34,15 @@ typedef struct scaler {
 #pragma mark prototypes
 scaler * getScaler(display * d, pointArray * path);
 pointArray * scale(pointArray * path, scaler * s);
-//SDL functions
+void renderPath(display * d, pointArray * path);
+sdlKey getSdlKeyPresses(display * d);
+void zoom(scaler * s, int zoomIn);
+
 display * startSDL();
 int checkSDLwinClosed(display *d);
 void quitSDL(display * d);
 
+void printPath(pointArray * path );
 
 #pragma mark Unit Test Prototypes
 void testStartSDL();
@@ -45,25 +55,24 @@ void testScalePath();
  */
 void draw(pointArray * path)
 {
+    if(VERBOSE) printPath(path);
+
     display * d = startSDL();
     
     scaler * s = getScaler(d, path);
     pointArray * scaledPath = scale(path, s);
-    
-    SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
-    SDL_RenderClear(d->renderer);
-    SDL_SetRenderDrawColor( d->renderer, 0xFF, 0xFF, 0xFF, 0xFF );
-    for(int point = 0; point<path->numberOfPoints-1; ++point)
-    {
-        SDL_RenderDrawLine(d->renderer,
-                           scaledPath->array[point].r[X],scaledPath->array[point].r[Y],
-                           scaledPath->array[point+1].r[X],scaledPath->array[point+1].r[Y]);
-    }
-    SDL_RenderPresent(d->renderer);
+    if(VERBOSE) printPath(scaledPath);
+
     while(!d->finished)
     {
-        getMouse
+        renderPath(d, scaledPath);
         checkSDLwinClosed(d);
+        sdlKey key = getSdlKeyPresses(d);
+        if(key==UP) zoom(s,1);//zoomin
+        if(key==DOWN) zoom(s,0);//zoomout
+        freePath(scaledPath);
+        scaledPath = scale(path, s);
+        if(VERBOSE) printPath(scaledPath);
     }
     free(s);//free scaler
     freePath(path);//free unscaled path
@@ -71,6 +80,16 @@ void draw(pointArray * path)
     quitSDL(d);
 }
 
+void printPath(pointArray * path )
+{
+    for(int p=0; p<path->numberOfPoints; ++p)
+    {
+        printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
+    }
+}
+
+
+#pragma Scaling functions
 
 /*
  Takes path and works out what the px/unit (FD) distance should be to fit the
@@ -104,17 +123,14 @@ scaler * getScaler(display * d, pointArray * path)
     }
     float spanOfPath[2] = { rMax[X]-rMin[X],
                             rMax[Y]-rMin[Y] };
-    
     float centreOfPath[2] = {   (rMax[X]-rMin[X])/2,
                                 (rMax[Y]-rMin[Y])/2 };
-
     float centreOfWindow[2] = { (float)d->winSize[X]/2,
                                 (float)d->winSize[Y]/2 };
-
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
     {
-        s->scale[dim] = 0.9*( (float)d->winSize[dim]  / spanOfPath[dim]);
-        s->offset[dim] =  - s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim];
+        s->scale[dim] = 0.8*( (float)d->winSize[dim]  / spanOfPath[dim]);
+        s->offset[dim] =  -s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim] + s->scale[dim]*spanOfPath[dim]/2;
     }
     
     if(!STRETCH_TO_FIT_WINDOW)
@@ -160,8 +176,56 @@ pointArray * scale(pointArray * path, scaler * s)
     }
     return scaledPath;
 }
+/* if zoomin > 1 increases the scale by ZOOM_SENSITIVITY of the current scale
+    else it is decreased by same
+ */
+void zoom(scaler * s, int zoomIn)
+{
+    for(dimension dim = X; dim<=DIM_MAX; ++dim)
+    {
+        printf("here");
+        if(zoomIn) s->scale[dim] +=  s->scale[dim]*ZOOM_SENSITIVITY;
+        else  s->scale[dim] -=  s->scale[dim]*ZOOM_SENSITIVITY;
+    }
+}
 
 #pragma mark SDL functions
+void renderPath(display * d, pointArray * path)
+{
+    SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
+    SDL_RenderClear(d->renderer);
+    SDL_SetRenderDrawColor( d->renderer, 0xFF, 0xFF, 0xFF, 0xFF );
+    for(int point = 0; point<path->numberOfPoints-1; ++point)
+    {
+        SDL_RenderDrawLine(d->renderer,
+                           path->array[point].r[X],path->array[point].r[Y],
+                           path->array[point+1].r[X],path->array[point+1].r[Y]);
+    }
+    SDL_RenderPresent(d->renderer);
+}
+
+/*  waits for an arrow or for the window to be closed
+ */
+sdlKey getSdlKeyPresses(display * d)
+{
+    while(1)
+    {
+        SDL_PollEvent(d->event);
+        if( d->event->type == SDL_QUIT )
+        {
+            d->finished = 1;
+            return NONE;
+        }
+        if( d->event->type == SDL_KEYDOWN )
+        {
+            int sym = d->event->key.keysym.sym;
+            if (sym == SDLK_UP )         return UP;
+            else if (sym == SDLK_DOWN )  return DOWN;
+        }
+        
+    }
+}
+
 display * startSDL()
 {
     display * d = malloc(sizeof(display));

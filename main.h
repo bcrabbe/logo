@@ -21,6 +21,7 @@
 #define SDL_WINDOW_WIDTH 900
 #define SDL_WINDOW_HEIGHT 660
 #define STRETCH_TO_FIT_WINDOW 1
+#define ZOOM_SENSITIVITY 0.1 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
 /******************************************************************************/
 //Parser Module
 typedef enum symbol {
