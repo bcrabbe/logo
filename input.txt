@@ -1,10 +1,10 @@
 
 {
    DO A FROM 1 TO 80000 {
-      SET C := A 0.000001 * ;
+      SET C := A 0.00000000001 * ;
       FD C
       RT 213
-	SET D := A 0.0000015 * ;
+	SET D := A 0.00000000015 * ;
 	FD D
 	RT 13
 	SET E := C D + ;

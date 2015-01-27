@@ -29,6 +29,9 @@ typedef enum sdlKey {
 typedef struct scaler {
     float scale[NUMBER_OF_DIMENSIONS];//pixcels per unit distance
     float offset[NUMBER_OF_DIMENSIONS];
+    float centreOfPath[NUMBER_OF_DIMENSIONS];
+    float centreOfWindow[NUMBER_OF_DIMENSIONS];
+    float spanOfPath[NUMBER_OF_DIMENSIONS];
 } scaler;
 
 #pragma mark prototypes
@@ -69,6 +72,7 @@ void draw(pointArray * path)
         checkSDLwinClosed(d);
         SDL_Delay(1e3/FPS);
         sdlKey key = getSdlKeyPresses(d);
+        if(key==NONE) break;
         if(key==UP) zoom(s,1);//zoomin
         if(key==DOWN) zoom(s,0);//zoomout
         freePath(scaledPath);
@@ -121,18 +125,14 @@ scaler * getScaler(display * d, pointArray * path)
             }
         }
     }
-    float spanOfPath[2] = { rMax[X]-rMin[X],
-                            rMax[Y]-rMin[Y] };
-    float centreOfPath[2] = {   (rMax[X]-rMin[X])/2,
-                                (rMax[Y]-rMin[Y])/2 };
-    float centreOfWindow[2] = { (float)d->winSize[X]/2,
-                                (float)d->winSize[Y]/2 };
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
     {
-        s->scale[dim] = 0.8*( (float)d->winSize[dim]  / spanOfPath[dim]);
-        s->offset[dim] =  -s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim] + s->scale[dim]*spanOfPath[dim]/2;
+        s->spanOfPath[dim] = rMax[dim]-rMin[dim];
+        s->centreOfPath[dim] = (rMax[dim]-rMin[dim])/2;
+        s->centreOfWindow[dim] = (float)d->winSize[dim]/2;
+        s->scale[dim] = 0.8*( (float)d->winSize[dim]  / s->spanOfPath[dim]);
+        //s->offset[dim] = -s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim] + s->scale[dim]*spanOfPath[dim]/2;
     }
-    
     if(!STRETCH_TO_FIT_WINDOW)
     {//if we dont want to alter ratio then use the smallest scale for both.
         if( s->scale[X] < s->scale[Y] ) s->scale[Y] = s->scale[X];
@@ -141,7 +141,7 @@ scaler * getScaler(display * d, pointArray * path)
     if(VERBOSE)
     {
         printf("scale: %f,%f\n", s->scale[X], s->scale[Y]);
-        printf("offset: %f,%f\n", s->offset[X], s->offset[Y]);
+        // printf("offset: %f,%f\n", s->offset[X], s->offset[Y]);
     }
     return s;
 }
@@ -171,7 +171,10 @@ pointArray * scale(pointArray * path, scaler * s)
     {
         for(dimension dim = X; dim<=DIM_MAX; ++dim)
         {
-            scaledPath->array[point].r[dim] = path->array[point].r[dim]*s->scale[dim] + s->offset[dim];
+            scaledPath->array[point].r[dim] -=  s->centreOfPath[dim];
+            scaledPath->array[point].r[dim] *= s->scale[dim];
+            scaledPath->array[point].r[dim] += s->centreOfWindow[dim];
+            //1            path->array[point].r[dim]*s->scale[dim] + s->offset[dim];
         }
     }
     return scaledPath;
@@ -189,6 +192,8 @@ void zoom(scaler * s, int zoomIn)
 }
 
 #pragma mark SDL functions
+/* conect the points in the path with lines in SDL window
+ */
 void renderPath(display * d, pointArray * path)
 {
     SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
@@ -216,10 +221,26 @@ sdlKey getSdlKeyPresses(display * d)
             if (sym == SDLK_UP )         return UP;
             else if (sym == SDLK_DOWN )  return DOWN;
         }
-        checkSDLwinClosed(d);        
+        checkSDLwinClosed(d);
+        SDL_Delay(1e3/FPS);
+        if(d->finished) return NONE;
     }
 }
-
+/*  Call frequently to see if the wind has been closed
+ then check d->finished to see if this is the case
+ */
+int checkSDLwinClosed(display *d)
+{
+    if(SDL_PollEvent(d->event))
+    {
+        if( d->event->type == SDL_QUIT )
+        {
+            d->finished = 1;
+            return 1;
+        }
+    }
+    return 0;
+}
 display * startSDL()
 {
     display * d = malloc(sizeof(display));
@@ -286,21 +307,7 @@ display * startSDL()
     return d;
 }
 
-/*  Call frequently to see if the wind has been closed
- then check d->finished to see if this is the case
- */
-int checkSDLwinClosed(display *d)
-{
-    if(SDL_PollEvent(d->event))
-    {
-        if( d->event->type == SDL_QUIT )
-        {
-            d->finished = 1;
-            return 1;
-        }
-    }
-    return 0;
-}
+
 
 /* call if window is closed
  */
@@ -377,6 +384,9 @@ void testGetScaler()
                      "the x offset should be set to this value.");
     sput_fail_unless(floatCompare(s->offset[Y],(float)d->winSize[Y]/2-s->scale[Y]*10),
                      "the y offset should be set to this value.");
+    free(s);
+    freePath(path);
+    quitSDL(d);
 }
 
 void testScalePath()
@@ -394,6 +404,14 @@ void testScalePath()
             "Each coordinate of the scaled path should be within the window dimensions");
         }
     }
+    renderPath(d,scaledPath);
+    while(!d->finished)
+    {
+        checkSDLwinClosed(d);
+    }
+    free(s);
+    freePath(path);
+    quitSDL(d);
 }
 
 

@@ -42,11 +42,7 @@ int main(int argc, const char * argv[])
     
     pointArray * path = buildPath(symList);
     if(path==NULL) return 0;
-    
-    
-    
     draw(path);
-    
     return 1;
 }
 
@@ -144,6 +140,7 @@ int floatCompare(float a, float b)
     float epsilon = 0.001;
     return fabs(a-b)<epsilon ? 1 : 0;
 }
+
 /* frees a symbolList allocated by the parser module
  */
 void freeSymList(symbolList * symList)
@@ -157,6 +154,7 @@ void freeSymList(symbolList * symList)
     }
     free(symList);
 }
+
 /* frees a path allocated by the path module
  */
 void freePath(pointArray * path )

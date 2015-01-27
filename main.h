@@ -10,12 +10,28 @@
 #define logo_main_h
 #include "sput.h"
 #include "debug.h"
-
+/******************************************************************************/
+//Options:
 #define TESTING 0 //runs the test if set
-#define VERBOSE 0 //prints info to terminal disable for speed.
+#define VERBOSE 1//prints info to terminal disable for speed.
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
 #define MAX_ERROR_STRING_SIZE 600
 
+#define FPS 50
+#define SDL_WINDOW_WIDTH 900
+#define SDL_WINDOW_HEIGHT 660
+#define STRETCH_TO_FIT_WINDOW 1
+#define ZOOM_SENSITIVITY 0.1 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
+
+#ifndef M_PI
+#define M_PI 3.14159265359
+#endif
+#ifndef M_PI_2
+#define M_PI_2 3.14159265359/2
+#endif
+#ifndef M_PI_4
+#define M_PI_4 3.14159265359/4
+#endif
 
 /******************************************************************************/
 //Parser Module
@@ -66,11 +82,6 @@ pointArray * buildPath( symbolList * symList);
 
 /******************************************************************************/
 //Drawing Module
-#define FPS 50
-#define SDL_WINDOW_WIDTH 900
-#define SDL_WINDOW_HEIGHT 660
-#define STRETCH_TO_FIT_WINDOW 1
-#define ZOOM_SENSITIVITY 0.8 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
 void draw(pointArray * path);
 
 
