@@ -11,17 +11,12 @@
 #include "sput.h"
 #include "debug.h"
 
-#define TESTING 0
-#define VERBOSE 1
+#define TESTING 0 //runs the test if set
+#define VERBOSE 0 //prints info to terminal disable for speed.
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
 #define MAX_ERROR_STRING_SIZE 600
-#define NUMBER_OF_DIMENSIONS 2
-#define DIM_MAX 1
 
-#define SDL_WINDOW_WIDTH 900
-#define SDL_WINDOW_HEIGHT 660
-#define STRETCH_TO_FIT_WINDOW 1
-#define ZOOM_SENSITIVITY 0.1 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
+
 /******************************************************************************/
 //Parser Module
 typedef enum symbol {
@@ -47,6 +42,10 @@ symbolList * parse(char * inputString);
 
 /******************************************************************************/
 //Path Making Module
+
+#define NUMBER_OF_DIMENSIONS 2
+#define DIM_MAX 1
+
 typedef enum dimension {
     X = 0,
     Y = 1
@@ -67,6 +66,11 @@ pointArray * buildPath( symbolList * symList);
 
 /******************************************************************************/
 //Drawing Module
+#define FPS 50
+#define SDL_WINDOW_WIDTH 900
+#define SDL_WINDOW_HEIGHT 660
+#define STRETCH_TO_FIT_WINDOW 1
+#define ZOOM_SENSITIVITY 0.8 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
 void draw(pointArray * path);
 
 

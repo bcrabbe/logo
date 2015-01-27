@@ -58,7 +58,7 @@ int main(int argc, const char * argv[])
  */
 char * readFile(const char * argv1)
 {
-    printf("readFile opening %s.\n",argv1);
+    if(VERBOSE) printf("readFile opening %s.\n",argv1);
     FILE * fp = NULL;
     fp = fopen(argv1, "r");
     if(!fp)

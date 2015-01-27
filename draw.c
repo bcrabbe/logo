@@ -62,17 +62,17 @@ void draw(pointArray * path)
     scaler * s = getScaler(d, path);
     pointArray * scaledPath = scale(path, s);
     if(VERBOSE) printPath(scaledPath);
-
+    printf("Prese up and down arrows to zoom in/out.\n");
     while(!d->finished)
     {
         renderPath(d, scaledPath);
         checkSDLwinClosed(d);
+        SDL_Delay(1e3/FPS);
         sdlKey key = getSdlKeyPresses(d);
         if(key==UP) zoom(s,1);//zoomin
         if(key==DOWN) zoom(s,0);//zoomout
         freePath(scaledPath);
         scaledPath = scale(path, s);
-        if(VERBOSE) printPath(scaledPath);
     }
     free(s);//free scaler
     freePath(path);//free unscaled path
@@ -183,7 +183,6 @@ void zoom(scaler * s, int zoomIn)
 {
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
     {
-        printf("here");
         if(zoomIn) s->scale[dim] +=  s->scale[dim]*ZOOM_SENSITIVITY;
         else  s->scale[dim] -=  s->scale[dim]*ZOOM_SENSITIVITY;
     }
@@ -211,18 +210,13 @@ sdlKey getSdlKeyPresses(display * d)
     while(1)
     {
         SDL_PollEvent(d->event);
-        if( d->event->type == SDL_QUIT )
-        {
-            d->finished = 1;
-            return NONE;
-        }
         if( d->event->type == SDL_KEYDOWN )
         {
             int sym = d->event->key.keysym.sym;
             if (sym == SDLK_UP )         return UP;
             else if (sym == SDLK_DOWN )  return DOWN;
         }
-        
+        checkSDLwinClosed(d);        
     }
 }
 
