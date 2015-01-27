@@ -1,6 +1,6 @@
 
 {
-   DO A FROM 1 TO 80000 {
+   DO A FROM 1 TO 800 {
       SET C := A 0.00000000001 * ;
       FD C
       RT 213

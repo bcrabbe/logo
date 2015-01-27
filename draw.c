@@ -45,7 +45,7 @@ display * startSDL();
 int checkSDLwinClosed(display *d);
 void quitSDL(display * d);
 
-void printPath(pointArray * path );
+void printPath(pointArray * path, char * name);
 
 #pragma mark Unit Test Prototypes
 void testStartSDL();
@@ -58,38 +58,30 @@ void testScalePath();
  */
 void draw(pointArray * path)
 {
-    if(VERBOSE) printPath(path);
+    if(VERBOSE) printPath(path, "orininal path:");
 
     display * d = startSDL();
     
     scaler * s = getScaler(d, path);
     pointArray * scaledPath = scale(path, s);
-    if(VERBOSE) printPath(scaledPath);
-    printf("Prese up and down arrows to zoom in/out.\n");
+    if(VERBOSE) printPath(scaledPath, "orininal path:");
+    printf("Press up and down arrows to zoom in/out.\n");
     while(!d->finished)
     {
         renderPath(d, scaledPath);
-        checkSDLwinClosed(d);
-        SDL_Delay(1e3/FPS);
         sdlKey key = getSdlKeyPresses(d);
-        if(key==NONE) break;
         if(key==UP) zoom(s,1);//zoomin
         if(key==DOWN) zoom(s,0);//zoomout
         freePath(scaledPath);
         scaledPath = scale(path, s);
+        if(VERBOSE) printPath(scaledPath, "orininal path:");
+        checkSDLwinClosed(d);
+        SDL_Delay(1e3/FPS);
     }
     free(s);//free scaler
     freePath(path);//free unscaled path
     freePath(scaledPath);
     quitSDL(d);
-}
-
-void printPath(pointArray * path )
-{
-    for(int p=0; p<path->numberOfPoints; ++p)
-    {
-        printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
-    }
 }
 
 
@@ -127,11 +119,11 @@ scaler * getScaler(display * d, pointArray * path)
     }
     for(dimension dim = X; dim<=DIM_MAX; ++dim)
     {
-        s->spanOfPath[dim] = rMax[dim]-rMin[dim];
-        s->centreOfPath[dim] = (rMax[dim]-rMin[dim])/2;
-        s->centreOfWindow[dim] = (float)d->winSize[dim]/2;
-        s->scale[dim] = 0.8*( (float)d->winSize[dim]  / s->spanOfPath[dim]);
-        //s->offset[dim] = -s->scale[dim]*centreOfPath[dim] + centreOfWindow[dim] + s->scale[dim]*spanOfPath[dim]/2;
+        s->spanOfPath[dim] = rMax[dim]-rMin[dim];//FD units
+        s->centreOfPath[dim] = (rMax[dim]-rMin[dim])/2;//FD units
+        s->centreOfWindow[dim] = (float)d->winSize[dim]/2;//px
+        s->scale[dim] = 0.3*( (float)d->winSize[dim]  / s->spanOfPath[dim]);//px per fd unit
+        s->offset[dim] = -s->scale[dim]*s->centreOfPath[dim] + s->centreOfWindow[dim] + s->scale[dim]*s->spanOfPath[dim]/2;
     }
     if(!STRETCH_TO_FIT_WINDOW)
     {//if we dont want to alter ratio then use the smallest scale for both.
@@ -141,13 +133,12 @@ scaler * getScaler(display * d, pointArray * path)
     if(VERBOSE)
     {
         printf("scale: %f,%f\n", s->scale[X], s->scale[Y]);
-        // printf("offset: %f,%f\n", s->offset[X], s->offset[Y]);
+        printf("offset: %f,%f\n", s->offset[X], s->offset[Y]);
     }
     return s;
 }
 /**
- Takes path and transforms each point: path->array[point].r[dim]*s->scale[dim] + s->offset[dim]
- This maps the points on to the display coordinates.
+ Takes path and transforms each point on to the display coordinates.
  returns a new, malloc'd, path. This and the old one should be free'd.
  */
 pointArray * scale(pointArray * path, scaler * s)
@@ -171,10 +162,7 @@ pointArray * scale(pointArray * path, scaler * s)
     {
         for(dimension dim = X; dim<=DIM_MAX; ++dim)
         {
-            scaledPath->array[point].r[dim] -=  s->centreOfPath[dim];
-            scaledPath->array[point].r[dim] *= s->scale[dim];
-            scaledPath->array[point].r[dim] += s->centreOfWindow[dim];
-            //1            path->array[point].r[dim]*s->scale[dim] + s->offset[dim];
+            scaledPath->array[point].r[dim] = path->array[point].r[dim]*s->scale[dim] + s->offset[dim];
         }
     }
     return scaledPath;
@@ -206,6 +194,16 @@ void renderPath(display * d, pointArray * path)
                            path->array[point+1].r[X],path->array[point+1].r[Y]);
     }
     SDL_RenderPresent(d->renderer);
+}
+
+void printPath(pointArray * path, char * name)
+{
+    char nameString[MAX_ERROR_STRING_SIZE] = "\n\nPrinting ";
+    sprintf(nameString, "\n\nShowing %s .\n\n",name);
+    for(int p=0; p<path->numberOfPoints; ++p)
+    {
+        printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
+    }
 }
 
 /*  waits for an arrow or for the window to be closed
@@ -376,14 +374,15 @@ void testGetScaler()
     |          |___________
 (0,20)---------------------(40,20)
      */
-    sput_fail_unless(floatCompare(s->scale[X],(0.9*(float)d->winSize[X])/(40)),
-                     "the x scaler should be set to this value.");
-    sput_fail_unless(floatCompare(s->scale[Y],(0.9*(float)d->winSize[Y])/(20)),
-                     "the y scaler should be set to this value.");
-    sput_fail_unless(floatCompare(s->offset[X],(float)d->winSize[X]/2-s->scale[X]*20),
-                     "the x offset should be set to this value.");
-    sput_fail_unless(floatCompare(s->offset[Y],(float)d->winSize[Y]/2-s->scale[Y]*10),
-                     "the y offset should be set to this value.");
+    for(dimension dim = X; dim<=Y; ++dim)
+    {
+        sput_fail_unless(floatCompare(s->scale[dim], 0.8*( (float)d->winSize[dim]  / s->spanOfPath[dim])),
+                         "the x scaler should be set to this value.");
+        sput_fail_unless(floatCompare(s->offset[dim],-s->scale[dim]*s->centreOfPath[dim] + s->centreOfWindow[dim] +
+                                      s->scale[dim]*s->spanOfPath[dim]/2),
+                         "the x offset should be set to this value.");
+    }
+
     free(s);
     freePath(path);
     quitSDL(d);
