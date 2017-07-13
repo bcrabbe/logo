@@ -1,5 +1,5 @@
 {
-DO A FROM -15 TO 15 {
+DO A FROM -25 TO 25 {
 DO B FROM 1 TO 300 {
 
     SET C := 12.14 A ^ ;
@@ -7,7 +7,7 @@ DO B FROM 1 TO 300 {
     SET J := I C + ;
     SET Q := 1 J / ;
 
-      RT 213
+      RT 134
       SET D := C B * ;
       FD D
       }

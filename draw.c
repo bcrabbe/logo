@@ -10,8 +10,7 @@
 #include <stdio.h>
 #include <SDL2/SDL.h>
 
-typedef struct display
-{
+typedef struct display {
   SDL_bool finished;
   SDL_bool skip;
   SDL_Window *win;
@@ -60,9 +59,12 @@ void testScalePath();
 /**
    Draws lines between each of the points in path to an sdl window
 */
-void draw(pointArray * path)
+void draw(pointArray * path) 
 {
-  if(VERBOSE) printPath(path, "orininal path:");
+  if(VERBOSE) {
+    printPath(path, "orininal path:");
+  }
+  
 
   display * d = startSDL();
     
@@ -72,14 +74,17 @@ void draw(pointArray * path)
   printf("Press up and down arrows to zoom in/out.\n");
   while(!d->finished) {
     renderPath(d, scaledPath);
-    sdlKey key = getSdlKeyPresses(d);
+    /* sdlKey key = getSdlKeyPresses(d);
     if(key==UP) zoom(s,1);//zoomin
     else if(key==DOWN) zoom(s,0);//zoomout
     else if(key==LEFT) rotate(s,0);
     else if(key==RIGHT) rotate(s,1);
+    */
+    rotate(s,1);
+    zoom(s,1);
     freePath(scaledPath);
     scaledPath = scale(path, s);
-    if(VERBOSE) printPath(scaledPath, "orininal path:");
+    //    if(VERBOSE) printPath(scaledPath, "orininal path:");
     checkSDLwinClosed(d);
     SDL_Delay(1e3/FPS);
   }
@@ -158,6 +163,7 @@ pointArray * scale(pointArray * path, scaler * s)
   }
   
   for(int point = 0; point<path->numberOfPoints; ++point) {
+      
     //    for(dimension dim = X; dim<=DIM_MAX; ++dim) {
     scaledPath->array[point].r[0] =
       (cos(s->rotation)*(path->array[point].r[0]*s->scale[0]) +
