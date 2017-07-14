@@ -1426,6 +1426,9 @@ void testParseOp()
   p->progArray = tokenise("/ }", &p->numberOfTokens, " ");
   sput_fail_unless(parseOP(p,&op)==1 && op==opDivide, "Valid, should read /.");
 
+  p->progArray = tokenise("^ }", &p->numberOfTokens, " ");
+  sput_fail_unless(parseOP(p,&op)==1 && op==opExpo, "Valid, should read ^.");
+
   freeParser(p);
 }
 
@@ -1467,6 +1470,14 @@ void testParsePolish()
 
   p->progArray = tokenise("A A * ; }", &p->numberOfTokens, " ");
   sput_fail_unless(parsePOLISH(p,&result)==1 && fabs(result-(20.2*20.2))<epsilon, "A A *; } is valid syntax, result should be 20.2^2 and return 1.");
+  displayErrors(p);
+
+  p->progArray = tokenise("A 2 ^ ; }", &p->numberOfTokens, " ");
+  sput_fail_unless(parsePOLISH(p,&result)==1 && fabs(result-(20.2*20.2))<epsilon, "A 2 ^; } is valid syntax, result should be 20.2^2 and return 1.");
+  displayErrors(p);
+
+    p->progArray = tokenise("A -3 ^ ; }", &p->numberOfTokens, " ");
+    sput_fail_unless(parsePOLISH(p,&result)==1 && fabs(result-pow(20.2,-3))<epsilon, "A -3 ^; } is valid syntax, result should be 20.2^-3 and return 1.");
   displayErrors(p);
 
   freeParser(p);
