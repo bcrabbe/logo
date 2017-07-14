@@ -12,7 +12,7 @@
 #include "debug.h"
 /******************************************************************************/
 //Options:
-#define TESTING 0//runs the test if set
+#define TESTING 1//runs the test if set
 #define VERBOSE 1//prints info to terminal disable for speed.
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
 #define MAX_ERROR_STRING_SIZE 600

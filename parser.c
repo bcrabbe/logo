@@ -308,14 +308,16 @@ int parseVARNUM(parser * p, float * result)
       return 0;
     }
   if(isdigit(p->progArray[p->atToken][0]) ||
-     ( p->progArray[p->atToken][0]=='-' &&  strlen(p->progArray[p->atToken])>1) ) 
+     ( p->progArray[p->atToken][0]=='-' &&
+       strlen(p->progArray[p->atToken])>1 &&
+       isdigit(p->progArray[p->atToken][1]))) 
     {
       value = atof(p->progArray[p->atToken]);
       if(incrementAtToken(p)==0) return 0;
       *result = value;
       return 1;
     }
-  else if(isupper(p->progArray[p->atToken][0]))//if its a upper case letter...
+  else if(isupper(p->progArray[p->atToken][0]))
     {
       char var = parseVAR(p);
       if(var=='\0') return 0; //could not read a valid VAR. error sent in func
@@ -323,8 +325,15 @@ int parseVARNUM(parser * p, float * result)
       *result = value;
       return 1;
     }
-  else
-    {
+  else if(p->progArray[p->atToken][0]=='-' &&
+	  strlen(p->progArray[p->atToken])>1 &&
+	  isupper(p->progArray[p->atToken][1])) {
+      char var = parseVAR(p);
+      if(var=='\0') return 0; //could not read a valid VAR. error sent in func
+      value = getVarValue(p,var);//retrieves the value of the specified variable
+      *result = -value;
+      return 1;
+    } else {
       return 0;
     }
 }
@@ -342,14 +351,18 @@ char parseVAR(parser * p)
       printError("parseVAR recieved a empty string. Exiting.",__FILE__,__FUNCTION__,__LINE__);
       return '\0';
     }
-  if(!isupper(p->progArray[p->atToken][0]))
+  if(isupper(p->progArray[p->atToken][0]))
     {
-      return '\0';
-    }
-  else
-    {//increment token and if successful return the char
       return incrementAtToken(p) ? p->progArray[p->atToken-1][0] : '\0';
     }
+  else if(p->progArray[p->atToken][0]=='-' &&
+       strlen(p->progArray[p->atToken])>1 &&
+       isupper(p->progArray[p->atToken][1])) 
+    {
+      return incrementAtToken(p) ? p->progArray[p->atToken-1][1] : '\0';     
+    } else {
+    return '\0';
+  }
 }
 
 /*
@@ -1005,8 +1018,10 @@ void freeTokenArray(char **tokenArray,int numberOfTokens)
   for(int i=0; i<numberOfTokens; ++i)
     {
       free(tokenArray[i]);
+      printf("freed row");
     }
   free(tokenArray);
+  printf("freed col");
     
 }
 
@@ -1363,7 +1378,23 @@ void testParseVarnum()
   setVarValue(p, 'S', 33.3);
   p->progArray = tokenise("S }", &p->numberOfTokens, " ");
   sput_fail_unless(parseVARNUM(p,&result)==1 && fabs(result-33.3)<epsilon, "is valid, should return value of 'S'");
-  freeParser(p);
+  freeTokenArray(p->progArray, p->numberOfTokens);
+  p->atToken=0;
+
+  setVarValue(p, 'S', 33.3);
+  p->progArray = tokenise("-S }", &p->numberOfTokens, " ");
+  testTokenArray(p->progArray, p->numberOfTokens);
+  sput_fail_unless(parseVARNUM(p,&result)==1 && fabs(result+33.3)<epsilon, "is valid, should return value of '-S'");
+  freeTokenArray(p->progArray, p->numberOfTokens);
+  p->atToken=0;
+  
+  //read -ve val
+  p->progArray = tokenise("-120 }", &p->numberOfTokens, " ");
+  sput_fail_unless(parseVARNUM(p,&result)==1 &&
+		   fabs(result+120)<epsilon, "Valid. Should read value -120.");
+  p->atToken=0;
+
+  freeParser(p);//will free last token array in call 
     
 }
 
