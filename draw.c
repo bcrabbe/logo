@@ -38,8 +38,10 @@ typedef struct scaler {
 } scaler;
 
 #pragma mark prototypes
-scaler * getScaler(display * d, pointArray * path);
+scaler * getScaler(display * d, pointArray ** path, int numberOfPaths);
+pointArray ** scalePaths(pointArray ** paths, int numberOfPaths, scaler * s);
 pointArray * scale(pointArray * path, scaler * s);
+void renderPaths(display * d, pointArray ** paths, int numberOfPaths);
 void renderPath(display * d, pointArray * path);
 sdlKey getSdlKeyPresses(display * d);
 void zoom(scaler * s, int zoomIn);
@@ -49,7 +51,8 @@ display * startSDL();
 int checkSDLwinClosed(display *d);
 void quitSDL(display * d);
 
-void printPath(pointArray * path, char * name);
+void printPaths(pointArray ** paths, int numberOfPaths, char * name);
+void printPath(pointArray * path, int name);
 
 #pragma mark Unit Test Prototypes
 void testStartSDL();
@@ -59,38 +62,40 @@ void testScalePath();
 /**
    Draws lines between each of the points in path to an sdl window
 */
-void draw(pointArray * path) 
+void draw(pointArray ** paths, int numberOfPaths) 
 {
   if(VERBOSE) {
-    printPath(path, "orininal path:");
-  }
-  
+    printPaths(paths, numberOfPaths, "orininal path:");
 
+  }
   display * d = startSDL();
-    
-  scaler * s = getScaler(d, path);
-  pointArray * scaledPath = scale(path, s);
-  if(VERBOSE) printPath(scaledPath, "orininal path:");
-  printf("Press up and down arrows to zoom in/out.\n");
-  while(!d->finished) {
-    renderPath(d, scaledPath);
-    /* sdlKey key = getSdlKeyPresses(d);
-    if(key==UP) zoom(s,1);//zoomin
-    else if(key==DOWN) zoom(s,0);//zoomout
-    else if(key==LEFT) rotate(s,0);
-    else if(key==RIGHT) rotate(s,1);
+  scaler * s = getScaler(d, paths, numberOfPaths);
+  sdlKey key = getSdlKeyPresses(d);
+  while(!d->finished) {  
+    pointArray ** scaledPaths = scalePaths(paths, numberOfPaths, s);
+    renderPaths(d, scaledPaths, numberOfPaths);
+    // if(VERBOSE) printPaths(scaledPaths, numberOfPaths, "scaled path:");
+    //printf("Press up and down arrows to zoom in/out.\n");
+    /*
+
+      if(key==UP) zoom(s,1);//zoomin
+      else if(key==DOWN) zoom(s,0);//zoomout
+      else if(key==LEFT) rotate(s,0);
+      else if(key==RIGHT) rotate(s,1);
     */
     rotate(s,1);
     zoom(s,1);
-    freePath(scaledPath);
-    scaledPath = scale(path, s);
+
+    freePaths(scaledPaths, numberOfPaths);
+    // scaledPaths = scalePaths(paths, numberOfPaths, s);
     //    if(VERBOSE) printPath(scaledPath, "orininal path:");
     checkSDLwinClosed(d);
+
     SDL_Delay(1e3/FPS);
   }
+
   free(s);//free scaler
-  freePath(path);//free unscaled path
-  freePath(scaledPath);
+  freePaths(paths, numberOfPaths);//free unscaled path
   quitSDL(d);
 }
 
@@ -103,7 +108,7 @@ void draw(pointArray * path)
   move the path into the centre of the window.
   It returns a malloc'd scaler *
 */
-scaler * getScaler(display * d, pointArray * path)
+scaler * getScaler(display * d, pointArray ** paths, int numberOfPaths)
 {
   scaler * s = malloc(sizeof(scaler));
   if(s==NULL){
@@ -112,13 +117,15 @@ scaler * getScaler(display * d, pointArray * path)
   }
   float rMin[NUMBER_OF_DIMENSIONS]={0};
   float rMax[NUMBER_OF_DIMENSIONS]={0};
-  for(int point = 0; point<path->numberOfPoints; ++point){
-    for(dimension dim = X; dim<=DIM_MAX; ++dim)	{
-      if(path->array[point].r[dim] > rMax[dim])	{
-	rMax[dim] = path->array[point].r[dim];
-      }
-      if(path->array[point].r[dim] < rMin[dim]) {
-	rMin[dim] = path->array[point].r[dim];
+  for(int pNum = 0; pNum<numberOfPaths; ++pNum) {
+    pointArray * path = paths[pNum];
+    for(int point = 0; point<path->numberOfPoints; ++point){
+      for(dimension dim = X; dim<=DIM_MAX; ++dim) {
+	if(path->array[point].r[dim] > rMax[dim]) {
+	  rMax[dim] = path->array[point].r[dim];
+	} if(path->array[point].r[dim] < rMin[dim]) {
+	  rMin[dim] = path->array[point].r[dim];
+	}
       }
     }
   }
@@ -142,6 +149,19 @@ scaler * getScaler(display * d, pointArray * path)
   return s;
 }
 
+pointArray ** scalePaths(pointArray ** paths, int numberOfPaths, scaler * s)
+{
+  pointArray ** scaledPaths = malloc(numberOfPaths*sizeof(pointArray *));
+  if(scaledPaths==NULL) {
+    printError("malloc failed exiting.",
+	       __FILE__,__FUNCTION__,__LINE__);
+    return NULL;
+  }
+  for(int pathNum=0; pathNum<numberOfPaths; ++pathNum) {
+    scaledPaths[pathNum] = scale(paths[pathNum], s);
+  }
+  return scaledPaths;
+}
 /**
    Takes path and transforms each point on to the display coordinates.
    returns a new, malloc'd, path. This and the old one should be free'd.
@@ -150,14 +170,14 @@ pointArray * scale(pointArray * path, scaler * s)
 {
   pointArray * scaledPath = malloc(sizeof(pointArray));
   if(scaledPath==NULL) {
-    printError("pointArray * scaledPath = malloc(sizeof(pointArray)) failed exiting.",
+    printError("malloc failed exiting.",
 	       __FILE__,__FUNCTION__,__LINE__);
     return NULL;
   }
   scaledPath->numberOfPoints = path->numberOfPoints;
   scaledPath->array = malloc(path->numberOfPoints*sizeof(point));
   if(scaledPath->array==NULL) {
-    printError("scaledPath->array = malloc(path->numberOfPoints*sizeof(point)) failed exiting.",
+    printError("malloc failed exiting.",
 	       __FILE__,__FUNCTION__,__LINE__);
     return NULL;
   }
@@ -189,9 +209,9 @@ void zoom(scaler * s, int zoomIn)
     else       s->scale[dim] -= s->scale[dim]*ZOOM_SENSITIVITY;
   }
   if(VERBOSE) {
-    printf("new scale");
-    lfprint(s->scale[0]);
-    lfprint(s->scale[1]);
+    // printf("new scale");
+    //    lfprint(s->scale[0]);
+    //    lfprint(s->scale[1]);
   }
 }
 
@@ -209,33 +229,48 @@ void rotate(scaler * s, int clockwise)
     s->rotation -= 2*M_PI;
   }
   if(VERBOSE) {
-    lfprint(s->rotation);
+    //    lfprint(s->rotation);
   }
 }	    
 #pragma mark SDL functions
+
+void renderPaths(display * d, pointArray ** paths, int numberOfPaths)
+{
+  SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
+  SDL_RenderClear(d->renderer);
+  for(int i=0; i<numberOfPaths; ++i) {
+    renderPath(d, paths[i]);
+  }
+  SDL_RenderPresent(d->renderer);
+}
 /* conect the points in the path with lines in SDL window
  */
 void renderPath(display * d, pointArray * path)
 {
-  SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
-  SDL_RenderClear(d->renderer);
   SDL_SetRenderDrawColor( d->renderer, 0xFF, 0xFF, 0xFF, 0xFF );
   for(int point = 0; point<path->numberOfPoints-1; ++point) {
     SDL_RenderDrawLine(d->renderer,
 		       path->array[point].r[X],path->array[point].r[Y],
 		       path->array[point+1].r[X],path->array[point+1].r[Y]);
   }
-  SDL_RenderPresent(d->renderer);
 }
 
-void printPath(pointArray * path, char * name)
+void printPaths(pointArray ** paths, int numberOfPaths, char * name)
+{
+  for(int p=0; p<numberOfPaths; ++p) {
+    printPath(paths[p], p);
+  }
+}
+
+void printPath(pointArray * path, int pathNumber)
 {
   char nameString[MAX_ERROR_STRING_SIZE] = "\n\nPrinting ";
-  sprintf(nameString, "\n\nShowing %s .\n\n",name);
+  sprintf(nameString, "\n\n path %d .\n\n",pathNumber);
   for(int p=0; p<path->numberOfPoints; ++p) {
     printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
   }
 }
+
 
 /*  waits for an arrow or for the window to be closed
  */
@@ -375,7 +410,7 @@ void testStartSDL()
 void testScalePath()
 {
   display * d = startSDL();
-  pointArray * path = mockPathForDrawUnitTests();
+  pointArray ** paths = mockPathsForDrawUnitTests();
   /*  this is the mock path:
       0,0
       20,0
@@ -391,8 +426,8 @@ void testScalePath()
       |              |___________
       (0,20)---------------------(40,20)
   */
-  scaler * s = getScaler(d, path);
-  pointArray * scaledPath = scale(path, s);
+  scaler * s = getScaler(d, paths, 1);
+  pointArray * scaledPath = scale(paths[0], s);
   for(int point = 0; point<scaledPath->numberOfPoints; ++point) {
     for(dimension dim=X;dim<=DIM_MAX;++dim) {
       sput_fail_unless( scaledPath->array[point].r[dim] <= d->winSize[dim] &&
@@ -401,7 +436,7 @@ void testScalePath()
     }
   }
   free(s);
-  freePath(path);
+  freePaths(paths, 1);
   quitSDL(d);
 }
 

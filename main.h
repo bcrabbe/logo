@@ -12,18 +12,20 @@
 #include "debug.h"
 /******************************************************************************/
 //Options:
-#define TESTING 1//runs the test if set
+#define TESTING 0//runs the test if set
 #define VERBOSE 1//prints info to terminal disable for speed.
 #define PRINT_ERRORS 1 //turn on/off stderr error messages.
 #define MAX_ERROR_STRING_SIZE 600
+#define NUMBER_OF_TURTLES 3
+#define WAIT_FOR_KEYS 0//zooming and rotating only on key press if true
 
 #define FPS 50
 #define SDL_WINDOW_WIDTH 900
 #define SDL_WINDOW_HEIGHT 660
 #define STRETCH_TO_FIT_WINDOW 0
-#define ZOOM_SENSITIVITY 0.1 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
+#define ZOOM_SENSITIVITY 0.08 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
 #define SCALE_AT_START 0.3 //of screen width
-#define ROTATION_SENSITIVITY 0.05
+#define ROTATION_SENSITIVITY 0.02
 
 #ifndef M_PI
 #define M_PI 3.14159265359
@@ -78,13 +80,13 @@ typedef struct pointArray {
     int numberOfPoints;
 } pointArray;
 
-pointArray * buildPath( symbolList * symList);
+pointArray ** buildPath(symbolList * symList, int numberOfTurtles);
 
 
 
 /******************************************************************************/
 //Drawing Module
-void draw(pointArray * path);
+void draw(pointArray ** paths, int numberOfPaths);
 
 
 
@@ -95,6 +97,7 @@ char *strdup(const char * source);
 int stringsMatch(const char * string1, const char * string2);
 int floatCompare(float a, float b);
 void freeSymList(symbolList * symList);
+void freePaths(pointArray ** path, int numberOfPaths);
 void freePath(pointArray * path );
 
 
@@ -108,6 +111,7 @@ void unitTests_draw();
 
 //structure mocking functions for tests
 symbolList * mockSymListForPathUnitTests();
+pointArray ** mockPathsForDrawUnitTests();
 pointArray * mockPathForDrawUnitTests();
 
 #endif

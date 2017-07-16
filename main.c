@@ -36,13 +36,14 @@ int main(int argc, const char * argv[])
     }
     char * inputString = readFile(argv[1]);
     if(inputString==NULL) exit(1);
-    
+
+    int numberOfTurtles = 48;
     symbolList * symList = parse(inputString);
     if(symList==NULL) return 0;
     
-    pointArray * path = buildPath(symList);
-    if(path==NULL) return 0;
-    draw(path);
+    pointArray ** paths = buildPath(symList, numberOfTurtles);
+    if(paths==NULL) return 0;
+    draw(paths, numberOfTurtles);
     return 1;
 }
 
@@ -153,6 +154,17 @@ void freeSymList(symbolList * symList)
         free(toBeFreed);
     }
     free(symList);
+}
+
+
+/* frees a path allocated by the path module
+ */
+void freePaths(pointArray ** paths, int numberOfPaths)
+{
+  for(int i=0; i<numberOfPaths; ++i) {
+    freePath(paths[i]);
+  }
+  free(paths);
 }
 
 /* frees a path allocated by the path module

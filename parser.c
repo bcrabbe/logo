@@ -1018,11 +1018,8 @@ void freeTokenArray(char **tokenArray,int numberOfTokens)
   for(int i=0; i<numberOfTokens; ++i)
     {
       free(tokenArray[i]);
-      printf("freed row");
     }
   free(tokenArray);
-  printf("freed col");
-    
 }
 
 #pragma mark developement tests
