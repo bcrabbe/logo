@@ -20,8 +20,8 @@
 #define WAIT_FOR_KEYS 0//zooming and rotating only on key press if true
 
 #define FPS 50
-#define SDL_WINDOW_WIDTH 900
-#define SDL_WINDOW_HEIGHT 660
+#define SDL_WINDOW_WIDTH 1280
+#define SDL_WINDOW_HEIGHT 800
 #define STRETCH_TO_FIT_WINDOW 0
 #define ZOOM_SENSITIVITY 0.08 //zooming will increase scale by a factor of ZOOM_SENSITIVITY*100 %
 #define SCALE_AT_START 0.3 //of screen width

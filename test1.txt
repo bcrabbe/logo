@@ -1,15 +1,17 @@
 {
+
 DO A FROM -25 TO 25 {
-DO B FROM 1 TO 10 {
+DO B FROM 1 TO 5 {
 
     SET C := 12.14 A ^ ;
     SET I := C 1.034 * ;
     SET J := I C + ;
-    SET Q := 1 J / ;
+    SET Q := 91 A * ;
 
-      RT 94
+      RT Q
       SET D := C B * ;
       FD D
       }
    } 
 }
+

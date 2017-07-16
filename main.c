@@ -37,7 +37,7 @@ int main(int argc, const char * argv[])
     char * inputString = readFile(argv[1]);
     if(inputString==NULL) exit(1);
 
-    int numberOfTurtles = 48;
+    int numberOfTurtles = 61;
     symbolList * symList = parse(inputString);
     if(symList==NULL) return 0;
     
