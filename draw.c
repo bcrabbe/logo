@@ -43,6 +43,7 @@ pointArray ** scalePaths(pointArray ** paths, int numberOfPaths, scaler * s);
 pointArray * scale(pointArray * path, scaler * s);
 void renderPaths(display * d, pointArray ** paths, int numberOfPaths);
 void renderPath(display * d, pointArray * path);
+void renderPolygon(display * d, point centre, int sides, int radius);
 sdlKey getSdlKeyPresses(display * d);
 void zoom(scaler * s, int zoomIn);
 void rotate(scaler * s, int clockwise);
@@ -234,6 +235,7 @@ void rotate(scaler * s, int clockwise)
 }	    
 #pragma mark SDL functions
 
+
 void renderPaths(display * d, pointArray ** paths, int numberOfPaths)
 {
   SDL_SetRenderDrawColor( d->renderer, 0x00, 0x00, 0x00, 0xFF );
@@ -247,11 +249,44 @@ void renderPaths(display * d, pointArray ** paths, int numberOfPaths)
  */
 void renderPath(display * d, pointArray * path)
 {
-  SDL_SetRenderDrawColor( d->renderer, 0xFF, 0xFF, 0xFF, 0xFF );
+
   for(int point = 0; point<path->numberOfPoints-1; ++point) {
+    SDL_SetRenderDrawColor( d->renderer, 0xFF, 0xFF, 0xFF, 0xFF );
     SDL_RenderDrawLine(d->renderer,
 		       path->array[point].r[X],path->array[point].r[Y],
 		       path->array[point+1].r[X],path->array[point+1].r[Y]);
+    SDL_SetRenderDrawColor( d->renderer, 0x99, 0x99, 0x99, 0x99 );
+    renderPolygon(d, path->array[point], 6,
+		  10*sqrt(pow(path->array[point].r[X]-((float)d->winSize[0]/2),2)+pow(path->array[point].r[Y]-((float)d->winSize[1]/2),2)));
+  }
+}
+
+//draws a regular polygon with specified num sides at centre
+//'radius' is the px distance from centre to corners 
+void renderPolygon(display * d, point centre, int sides, int radius)
+{
+  pointArray * polygon = malloc(sizeof(pointArray));
+  if(polygon==NULL) {
+    printError("malloc failed exiting.",__FILE__,__FUNCTION__,__LINE__);
+    exit(1);
+  }
+  polygon->numberOfPoints=sides;
+  polygon->array=malloc(sides*sizeof(point));
+  if(polygon->array==NULL) {
+    printError("malloc failed exiting.",__FILE__,__FUNCTION__,__LINE__);
+    exit(1);
+  }
+  for(int i=0; i<sides; ++i){
+    float angle = (i/(float)sides)*2*M_PI;
+    polygon->array[i].r[X] = centre.r[X] + radius*sin(angle);
+    polygon->array[i].r[Y] = centre.r[Y] - radius*cos(angle);
+
+  }
+  for(int point=0; point<sides; ++point) {
+    SDL_RenderDrawLine(d->renderer,
+		       polygon->array[point].r[X],polygon->array[point].r[Y],
+		       polygon->array[(point+1)%sides].r[X],
+		       polygon->array[(point+1)%sides].r[Y]);
   }
 }
 
@@ -270,7 +305,6 @@ void printPath(pointArray * path, int pathNumber)
     printf("( %f, %f)\n",path->array[p].r[X], path->array[p].r[Y]);
   }
 }
-
 
 /*  waits for an arrow or for the window to be closed
  */
